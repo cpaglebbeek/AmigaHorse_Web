@@ -95,6 +95,7 @@ export function init() {
 function bindFunctions(Module) {
   const cwrap = Module.cwrap;
 
+  // Emulator control
   const run = cwrap('wasm_run', 'void', []);
   const halt = cwrap('wasm_halt', 'void', []);
   const reset = cwrap('wasm_reset', 'void', []);
@@ -104,6 +105,26 @@ function bindFunctions(Module) {
   const configure = cwrap('wasm_configure', 'string', ['string', 'string']);
   const saveWorkspaceRaw = cwrap('wasm_save_workspace', 'string', ['string']);
   const loadWorkspaceRaw = cwrap('wasm_load_workspace', 'void', ['string']);
+
+  // Render (sub-step 6)
+  const drawOneFrame = cwrap('wasm_draw_one_frame', 'number', ['number']);
+  const execute = cwrap('wasm_execute', 'void', []);
+  const pixelBuffer = cwrap('wasm_pixel_buffer', 'number', []);
+  const renderWidth = cwrap('wasm_get_render_width', 'number', []);
+  const renderHeight = cwrap('wasm_get_render_height', 'number', []);
+  const frameInfo = cwrap('wasm_frame_info', 'number', []);
+
+  // Mouse (sub-step 6)
+  const mouse = cwrap('wasm_mouse', 'void', ['number', 'number', 'number']);
+  const mouseButton = cwrap('wasm_mouse_button', 'void', ['number', 'number', 'number']);
+
+  // Audio (sub-step 6 skelet; echte sink sub-step 7)
+  const setSampleRate = cwrap('wasm_set_sample_rate', 'void', ['number']);
+  const updateAudio = cwrap('wasm_update_audio', 'void', ['number']);
+  const leftChannelBuffer = cwrap('wasm_leftChannelBuffer', 'number', []);
+  const rightChannelBuffer = cwrap('wasm_rightChannelBuffer', 'number', []);
+  const getSoundBufferAddress = cwrap('wasm_get_sound_buffer_address', 'number', []);
+  const copyIntoSoundBuffer = cwrap('wasm_copy_into_sound_buffer', 'number', []);
 
   /**
    * wasm_loadFile(name, u8*buf, long len, u8 drive_number) → const char*
@@ -155,12 +176,19 @@ function bindFunctions(Module) {
   return {
     // Emulator control
     run, halt, reset, powerOn, configure,
-    // Input
+    // Input — keyboard
     key, scheduleKey,
+    // Input — mouse (sub-step 6)
+    mouse, mouseButton,
     // I/O
     loadFile,
     // State
     saveStateToBuffer, restoreStateFromBuffer,
+    // Render (sub-step 6)
+    drawOneFrame, execute, pixelBuffer, renderWidth, renderHeight, frameInfo,
+    // Audio (sub-step 6 skelet, sink in sub-step 7)
+    setSampleRate, updateAudio, leftChannelBuffer, rightChannelBuffer,
+    getSoundBufferAddress, copyIntoSoundBuffer,
   };
 }
 
@@ -170,6 +198,14 @@ function bindFunctions(Module) {
 export async function getBindings() {
   const state = await init();
   return state.bindings;
+}
+
+/**
+ * Convenience: geef de Emscripten Module instance terug (voor HEAP-access in renderer).
+ */
+export async function getModule() {
+  const state = await init();
+  return state.module;
 }
 
 // ---------------------------------------------------------------------------

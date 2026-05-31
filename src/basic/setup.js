@@ -18,8 +18,10 @@
 // daadwerkelijke KS 1.3 + WB 1.3 + AmigaBASIC binaries vereist.
 // Timing-konstanten zijn educated guesses; sub-step 5+ live tunen.
 
-import { init, getBindings, storeAsset } from '../wasm-bridge.js';
+import { init, getBindings, getModule, storeAsset } from '../wasm-bridge.js';
 import { encodeStringToSequence, playSequence, RAWKEY } from '../lib/amiga-keymap.js';
+import { CanvasRenderer } from '../lib/canvas-renderer.js';
+import { scriptedDoubleClick } from '../lib/mouse-input.js';
 
 const STATE = {
   kick: null,
@@ -113,24 +115,36 @@ async function bakeWarmSnapshot() {
     const wbResult = bindings.loadFile('wb13.adf', wbBuf, 0);
     console.log('[bake] loadFile wb13 →', wbResult);
 
-    // -- Stap 4: Run emulator + wacht op WB-boot --
-    setStepStatus('step-4', 'Start emulatie + wachten op Workbench-boot (~8 sec)...');
+    // -- Stap 4: Start canvas-renderer + run emulator + wacht op WB-boot --
+    setStepStatus('step-4', 'Start canvas-renderer + emulatie + wachten op Workbench-boot (~8 sec)...');
+    // Canvas-renderer + visuele feedback (sub-step 6)
+    const bakeCanvas = document.getElementById('bake-canvas');
+    let bakeRenderer = null;
+    if (bakeCanvas) {
+      const Module = await getModule();
+      bakeRenderer = new CanvasRenderer(bakeCanvas, bindings, Module);
+      bakeCanvas.style.display = 'block';
+      bakeRenderer.start();
+      bakeRenderer.fitToContainer(640);
+    }
     bindings.run();
     await sleep(8000);
 
     // -- Stap 5: Open AmigaBASIC --
-    // WB 1.3 verwacht muis-double-click op AmigaBASIC-icon. Zonder mouse-emulation
-    // (komt v0.x): we proberen via CLI met rechter-Amiga + N → "AmigaBASIC<RET>".
-    // Alternatief: AmigaBASIC binary moet eerst in C: of via copy/run pad-uitlezing.
+    // Twee-pad-aanpak (sub-step 6):
+    //   1. Type "AmigaBASIC<RET>" — werkt als WB 1.3 al een Shell-prompt heeft
+    //   2. Mouse-double-click op icon-positie (270, 100) — typische WB 1.3 layout
     //
-    // **Belangrijke aanname:** WB 1.3 disk heeft "AmigaBASIC" bestand op root.
-    // Als CLI niet beschikbaar is in een nieuwe WB-sessie, faalt dit stap.
-    // Sub-step 5+ live tunen: misschien moet user "Open Shell" eerst via menu.
-    setStepStatus('step-4', 'Open CLI + start AmigaBASIC...');
-    // Rechter-Amiga + N = WB shortcut "New CLI" in 2.x; in 1.3 niet altijd. Risk-flag.
-    // We typen het commando + Return:
+    // Beide proberen. Eerste sub-step 5 live test bevestigt welke werkt.
+    setStepStatus('step-4', 'Try 1: CLI-typing "AmigaBASIC<RET>"...');
     const startSequence = encodeStringToSequence('AmigaBASIC\r');
     await playSequence(bindings, startSequence);
+    await sleep(2000);
+
+    setStepStatus('step-4', 'Try 2: muis-double-click op AmigaBASIC-icon (270, 100)...');
+    // Coords zijn educated guess voor WB 1.3 disk-window-icon-layout.
+    // Live test moet exacte coords meten.
+    await scriptedDoubleClick(bindings, 270, 100);
     await sleep(3000);  // wachten tot AmigaBASIC opent
 
     // -- Stap 6: Save workspace als warm-snapshot --
@@ -142,6 +156,7 @@ async function bakeWarmSnapshot() {
     await storeAsset('amigahorse-states', 'basic-env-snapshot', new Blob([snap]));
     console.log('[bake] warm-snapshot opgeslagen (', snap.length, ' bytes)');
 
+    if (bakeRenderer) bakeRenderer.stop();
     setStepStatus('step-4', `OK warm-snapshot ${snap.length} bytes opgeslagen. Doorsturen...`, 'done');
     setTimeout(() => { window.location.href = '/basic/'; }, 1500);
   } catch (err) {

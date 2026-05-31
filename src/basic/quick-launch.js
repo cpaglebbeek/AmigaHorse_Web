@@ -1,6 +1,6 @@
-// AmigaHorse_Web — Quick BASIC quick-launch flow (v0.0.5-RType, sub-step 5)
+// AmigaHorse_Web — Quick BASIC quick-launch flow (v0.0.6-Apidya, sub-step 6)
 //
-// Volledige flow:
+// Volledige flow + nu canvas-render + mouse + audio-setup:
 //   1. init() laadt vAmiga.js + WASM
 //   2. Check warm-snapshot in IndexedDB → ontbreekt = redirect /basic/setup
 //   3. Drop .bas → buildAdfWithBasFile() → ADF Uint8Array
@@ -8,20 +8,25 @@
 //   5. bindings.loadFile('basic.adf', adf, 1) → DF1: in Amiga
 //   6. playSequence('LOAD "DF1:launch.bas"<CR>')
 //   7. auto-RUN ? playSequence('RUN<CR>') : stop in prompt
-//   8. bindings.run()
-//
-// **Status sub-step 5:** Infrastructuur klaar. Live tunen met user .bas test
-// in browser.
+//   8. Start canvas-renderer + mouse-input + audio
+//   9. bindings.run()
 
-import { init, getBindings, hasWarmSnapshot, loadAsset } from '../wasm-bridge.js';
+import { init, getBindings, getModule, hasWarmSnapshot, loadAsset } from '../wasm-bridge.js';
 import { buildAdfWithBasFile, _internal as adfInternal } from '../lib/build-blank-adf.js';
 import { encodeStringToSequence, playSequence } from '../lib/amiga-keymap.js';
+import { CanvasRenderer } from '../lib/canvas-renderer.js';
+import { MouseInput } from '../lib/mouse-input.js';
+import { AudioSetup } from '../lib/audio-setup.js';
 
 const dropzone = document.getElementById('dropzone');
 const status = document.getElementById('status');
 const canvas = document.getElementById('emulator');
 const autoRunCheckbox = document.getElementById('auto-run');
 const smokeTestButton = document.getElementById('smoke-test');
+
+let renderer = null;
+let mouseInput = null;
+let audioSetup = null;
 
 function setStatus(msg, kind = 'info') {
   status.textContent = msg;
@@ -47,13 +52,13 @@ async function bootCheck() {
 
 async function handleBasFile(file) {
   if (!file.name.toLowerCase().endsWith('.bas')) {
-    setStatus(`Bestand "${file.name}" is geen .bas — alleen AmigaBASIC v0.0.5`, 'error');
+    setStatus(`Bestand "${file.name}" is geen .bas — alleen AmigaBASIC v0.0.6`, 'error');
     return;
   }
   if (file.size > adfInternal.OFS_DATA_PER_BLOCK) {
     setStatus(
-      `Bestand ${file.size} bytes — v0.0.5 limiet ${adfInternal.OFS_DATA_PER_BLOCK} bytes ` +
-      `(1 OFS data-block). Multi-block-support komt v0.0.6.`,
+      `Bestand ${file.size} bytes — v0.0.6 limiet ${adfInternal.OFS_DATA_PER_BLOCK} bytes ` +
+      `(1 OFS data-block). Multi-block-support komt v0.0.7.`,
       'error',
     );
     return;
@@ -68,6 +73,13 @@ async function handleBasFile(file) {
 
     setStatus('Init vAmiga-Module...');
     const bindings = await getBindings();
+    const Module = await getModule();
+
+    // Init audio (sub-step 6: alleen sample-rate; echte sink sub-step 7)
+    if (!audioSetup) {
+      audioSetup = new AudioSetup(bindings);
+      await audioSetup.init();
+    }
 
     setStatus('Restore warm-snapshot (BASIC-prompt-state)...');
     const snapAsset = await loadAsset('amigahorse-states', 'basic-env-snapshot');
@@ -83,7 +95,18 @@ async function handleBasFile(file) {
     setStatus(`Mount ADF (${adf.length} bytes) in DF1:...`);
     const loadResult = bindings.loadFile('basic.adf', adf, 1);
     console.log('[quick-launch] loadFile DF1: →', loadResult);
+
+    // Start render-loop + mouse-input
     canvas.style.display = 'block';
+    if (!renderer) {
+      renderer = new CanvasRenderer(canvas, bindings, Module);
+    }
+    if (!mouseInput) {
+      mouseInput = new MouseInput(canvas, bindings);
+      mouseInput.attach();
+    }
+    renderer.start();
+    renderer.fitToContainer(800);
 
     setStatus('Type LOAD "DF1:launch.bas" + RUN...');
     const autoRun = autoRunCheckbox.checked;
@@ -113,8 +136,9 @@ async function runSmokeTest() {
     console.log('[smoke-test] bindings:', Object.keys(bindings));
     setStatus(
       `vAmiga-Module geladen + ${Object.keys(bindings).length} cwrap-bindings actief ` +
-      `(run, halt, reset, powerOn, configure, key, scheduleKey, loadFile, ` +
-      `saveStateToBuffer, restoreStateFromBuffer).`,
+      `(run, halt, reset, powerOn, configure, key, scheduleKey, mouse, mouseButton, ` +
+      `loadFile, save/restoreState, drawOneFrame, pixelBuffer, renderWidth/Height, ` +
+      `frameInfo, setSampleRate, ...)`,
       'success',
     );
   } catch (err) {

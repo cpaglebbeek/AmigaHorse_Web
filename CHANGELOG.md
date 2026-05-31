@@ -2,6 +2,66 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Codenamen uit pool `Meta_AmigaHorse/CLAUDE.md`.
 
+## [0.0.6-Apidya] — 2026-06-01 (sub-step 6: canvas-render + mouse-emulation + audio-skelet)
+
+> Codenaam **Apidya** (Kaiko 1992, shoot-em-up bekend om state-of-the-art Amiga graphics — fitting render-pipeline).
+> Kleur **Groen +0.0.1** (nieuwe bindings + render-loop, geen architectuurwijziging). Oranje +0.1.0 spaar ik tot user e2e-bewijs.
+
+### Added
+- **`src/lib/canvas-renderer.js`** (~120r) — `CanvasRenderer` class met `requestAnimationFrame`-loop
+  - `start()` / `stop()` idempotent
+  - Per tick: `drawOneFrame(now)` → `pixelBuffer()` → HEAPU8.subarray → ImageData → putImageData
+  - Auto-resize canvas + ImageData bij resolution-switch
+  - `fitToContainer(maxWidth)` voor CSS-pixel-scaling met `image-rendering: pixelated`
+  - FPS-counter
+- **`src/lib/mouse-input.js`** (~110r) — `MouseInput` class
+  - DOM mousemove/down/up/contextmenu → `bindings.mouse(port, x, y)` + `bindings.mouseButton(port, btn, pressed)`
+  - Coordinate-scaling via `getBoundingClientRect` + canvas native dims
+  - `blur`-handler om sticky-buttons te voorkomen
+  - Helpers `scriptedClick` + `scriptedDoubleClick` voor bake-flow (WB-icon-double-click)
+- **`src/lib/audio-setup.js`** (~60r, skelet) — `AudioSetup` class
+  - `init()` reserveert AudioContext + roept `bindings.setSampleRate(rate)`
+  - TODO sub-step 7: AudioWorklet / ScriptProcessor sink koppelen
+- **`src/wasm-bridge.js`** uitgebreid met 14 nieuwe cwrap-bindings:
+  - Render: `drawOneFrame`, `execute`, `pixelBuffer`, `renderWidth`, `renderHeight`, `frameInfo`
+  - Mouse: `mouse`, `mouseButton`
+  - Audio: `setSampleRate`, `updateAudio`, `leftChannelBuffer`, `rightChannelBuffer`, `getSoundBufferAddress`, `copyIntoSoundBuffer`
+- **`src/wasm-bridge.js` nieuwe export** `getModule()` voor HEAP-access door renderer
+- **`src/basic/quick-launch.js`** wire alle drie: renderer.start + mouseInput.attach + audioSetup.init bij `.bas`-drop
+- **`src/basic/setup.js`** bake-flow uitgebreid:
+  - Canvas-renderer toont WB-boot live tijdens bake
+  - Twee-pad start AmigaBASIC: (1) CLI-typing `AmigaBASIC<RET>`, (2) scripted mouse-double-click op (270, 100) — beide proberen
+- **`src/basic/setup.html`** `<canvas id="bake-canvas">` toegevoegd (320×256, hidden tot bake start)
+
+### Verified
+- `node --check` op 10 JS-files OK
+- `npm run build` produceert minified dist/ in 26ms
+- Dev-server :5173 serves alle routes 200
+- Bundle bevat nieuwe classes (CanvasRenderer/MouseInput/AudioSetup + drawOneFrame/pixelBuffer/renderWidth verified via grep)
+- Bundle-size redelijk: quick-launch 6.6 KB (was 4.9 KB), setup 4.8 KB (was 4.2 KB)
+
+### Signaturen geverifieerd in main.cpp
+- `wasm_mouse(int port, int x, int y)` — port=1 typisch
+- `wasm_mouse_button(int port, int button_id, int pressed)` — btn 0=left, 1=right
+- `wasm_pixel_buffer() → Texel*` (= u32 ARGB/RGBA per pixel)
+- `wasm_get_render_width/height() → int`
+- `wasm_draw_one_frame(double now) → int`
+- `wasm_set_sample_rate(unsigned)`
+- `wasm_get_sound_buffer_address() → float*` + L/R-channel-buffer pointers
+
+### Aanname (te verifieren live)
+- Pixel-format: little-endian RGBA (Canvas2D-conventie). Als vAmiga ARGB schrijft (Mac-style): kleurkanaal-swap nodig → sub-step 6.1 fix
+- Mouse-port 1 voor Amiga-muis
+- WB 1.3 AmigaBASIC-icon op coords (270, 100) — educated guess; live tunen
+
+### Not yet (sub-step 7)
+- Audio-sink (AudioWorklet of polling ScriptProcessor) — vereist beslissing over SharedArrayBuffer / COOP+COEP / postMessage-pattern
+- Pixel-format-auto-detect (RGBA vs ARGB)
+- Mouse-coords WB-icon-tuning op basis van eerste live bake
+- Full mode rendering (alleen Quick BASIC heeft render-loop nu)
+- Gamepad-API
+- Multi-block ADF >488 bytes
+
 ## [0.0.5-RType] — 2026-06-01 (v0.0.2.x sub-step 5: amiga-keymap + bake-flow + full BASIC-flow, dev-server bewezen)
 
 > Codenaam **R-Type** (Irem 1989, side-scrolling shooter port — fitting "key-TYPE" + iconic Amiga title).
