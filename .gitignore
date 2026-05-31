@@ -25,4 +25,11 @@ local-test/
 # upstream submodule build artefacts
 external/*/build/
 external/*/dist/
+# vAmigaWeb build copies bovenop submodule (CMakeLists schrijft naar root van submodule)
+external/vamigaweb/vAmiga.html
+external/vamigaweb/vAmiga.js
+external/vamigaweb/vAmiga.wasm
+external/vamigaweb/vAmiga.ww.js
+external/vamigaweb/sw.js
+external/vamigaweb/index.html
 .cache/

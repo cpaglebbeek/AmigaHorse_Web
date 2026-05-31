@@ -13,7 +13,7 @@
   "scripts": {
     "dev": "esbuild --config=esbuild.config.mjs --serve=8000 --servedir=dist --watch",
     "build": "esbuild --config=esbuild.config.mjs --minify",
-    "build:wasm": "echo 'TODO v0.0.2.x sub-step 3: emcc-pipeline op external/vamigaweb/Core/. Eerst: source tools/emscripten-env.sh. Zie external/README.md.' && exit 1",
+    "build:wasm": "bash tools/build-wasm.sh",
     "clean": "rm -rf dist build node_modules/.cache",
     "preview": "npx --yes serve dist --cors --listen 8000"
   },

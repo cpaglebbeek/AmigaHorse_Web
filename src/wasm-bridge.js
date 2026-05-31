@@ -1,10 +1,30 @@
-// AmigaHorse_Web — wasm-bridge.js (v0.0.2-CannonFodder, stub)
+// AmigaHorse_Web — wasm-bridge.js (v0.0.3-Flashback, sub-step 3 integratie)
 //
 // Typed wrapper rondom vAmigaWeb's WASM-exports. Eén centrale module die alle
 // vAmiga-calls bundelt, zodat /basic/ en /full/ routes dezelfde API gebruiken.
 //
-// vAmigaWeb (https://github.com/vAmigaWeb/vAmigaWeb) is GPL-3.0; toegevoegd
-// als git-submodule in external/vamigaweb/ in v0.0.2.x. Tot dan: stubs hieronder.
+// vAmigaWeb (https://github.com/vAmigaWeb/vAmigaWeb) is GPL-3.0; submodule
+// `external/vamigaweb/` pinned commit c3c50d9 (v0.0.2.1).
+//
+// WASM-artefacten geproduceerd door tools/build-wasm.sh (v0.0.3-Flashback):
+//   dist/vendor/vamigaweb/vAmiga.js     (106 KB, Emscripten glue)
+//   dist/vendor/vamigaweb/vAmiga.wasm   (8.77 MB, Amiga-emulator binary)
+//
+// Sub-step 3 = build pipeline werkt, artefacten in dist/. Sub-step 4 = exports
+// verifieren + concrete API-mapping. Sub-step 5 = end-to-end BASIC.bas test.
+//
+// Beschikbare exports uit CMakeLists.txt (~60 _wasm_-functies):
+//   - _wasm_loadFile         disk/cart-laden
+//   - _wasm_save_workspace   save-state (basis voor warm-snapshot P-AMH-09)
+//   - _wasm_load_workspace   restore-state
+//   - _wasm_auto_type        keyboard injection (BASIC LOAD/RUN flow)
+//   - _wasm_run / _wasm_halt emulator-control
+//   - _wasm_pixel_buffer     framebuffer-pointer voor canvas-blit
+//   - _wasm_get_sound_buffer_address  AudioWorklet-sink
+//   - (volledige lijst: zie external/vamigaweb/CMakeLists.txt EXPORTED_FUNCTIONS)
+//
+// Géén `mountDH`-export gevonden → sub-step 4 bevestigt fallback: on-the-fly
+// ADF-rebuild voor `.bas`-injection via _wasm_loadFile-DH1:-pad.
 //
 // Zie docs/BASIC_MODE.md voor het complete data-flow per route.
 
@@ -18,33 +38,37 @@ const STATE = {
 /**
  * Initialiseer vAmiga-WASM. Vereist COOP+COEP-headers voor SharedArrayBuffer.
  *
- * TODO v0.0.2.x:
- *   - dynamic import van '../external/vamigaweb/build/amigahorse-vamiga.js'
- *   - check crossOriginIsolated, WASM-SIMD support
- *   - mount Emscripten MEMFS op /dh1 voor hostfs-injection
+ * v0.0.3-Flashback: artefacten beschikbaar in dist/vendor/vamigaweb/. Concrete
+ * dynamic import + Module()-instantiation komt in sub-step 4 (na export-audit).
+ *
+ * Nonworker-build (CMakeLists thread_type=nonworker) → géén SharedArrayBuffer
+ * verplicht; crossOriginIsolated wordt alleen vereist als we naar worker-mode
+ * switchen in v0.0.x+.
  */
 export async function init() {
   if (STATE.ready) return STATE.vamiga;
 
-  if (!crossOriginIsolated) {
-    throw new Error(
-      'COOP+COEP-headers ontbreken — SharedArrayBuffer niet beschikbaar. ' +
-      'Host dient Cross-Origin-Opener-Policy: same-origin en ' +
-      'Cross-Origin-Embedder-Policy: require-corp te zetten.'
-    );
-  }
+  // TODO sub-step 4: replace stubs met daadwerkelijke dynamic import:
+  //   const vamigaModule = await import('/vendor/vamigaweb/vAmiga.js');
+  //   STATE.vamiga = await vamigaModule.default({
+  //     locateFile: (p) => `/vendor/vamigaweb/${p}`,
+  //   });
+  //   STATE.vamiga.loadFile  = STATE.vamiga.cwrap('wasm_loadFile', ...)
+  //   STATE.vamiga.saveState = STATE.vamiga.cwrap('wasm_save_workspace', ...)
+  //   STATE.vamiga.loadState = STATE.vamiga.cwrap('wasm_load_workspace', ...)
+  //   STATE.vamiga.autoType  = STATE.vamiga.cwrap('wasm_auto_type', ...)
+  //   ...
 
-  // STUB — wordt vervangen bij v0.0.2.x na vAmigaWeb submodule add
   STATE.vamiga = {
-    start: () => console.warn('[wasm-bridge] STUB vAmiga.start'),
+    start: () => console.warn('[wasm-bridge] STUB vAmiga.start — sub-step 4'),
     stop: () => console.warn('[wasm-bridge] STUB vAmiga.stop'),
-    loadKickstart: (_buf) => console.warn('[wasm-bridge] STUB loadKickstart'),
-    loadADF: (_buf, _df) => console.warn('[wasm-bridge] STUB loadADF'),
-    mountDH: (_hostPath) => console.warn('[wasm-bridge] STUB mountDH — te verifieren in vAmigaWeb-API'),
-    saveState: () => new Uint8Array(0),
-    restoreState: (_buf) => console.warn('[wasm-bridge] STUB restoreState'),
-    injectKey: (_text) => console.warn('[wasm-bridge] STUB injectKey'),
-    injectJoy: (_port, _dx, _dy, _fire) => console.warn('[wasm-bridge] STUB injectJoy'),
+    loadKickstart: (_buf) => console.warn('[wasm-bridge] STUB loadKickstart → _wasm_loadFile'),
+    loadADF: (_buf, _df) => console.warn('[wasm-bridge] STUB loadADF → _wasm_loadFile'),
+    mountDH: (_hostPath) => console.warn('[wasm-bridge] mountDH ontbreekt in vAmigaWeb — fallback ADF-rebuild sub-step 4'),
+    saveState: () => new Uint8Array(0),       // → _wasm_save_workspace
+    restoreState: (_buf) => console.warn('[wasm-bridge] STUB restoreState → _wasm_load_workspace'),
+    injectKey: (_text) => console.warn('[wasm-bridge] STUB injectKey → _wasm_auto_type'),
+    injectJoy: (_port, _dx, _dy, _fire) => console.warn('[wasm-bridge] STUB injectJoy → _wasm_joystick'),
   };
   STATE.ready = true;
   return STATE.vamiga;

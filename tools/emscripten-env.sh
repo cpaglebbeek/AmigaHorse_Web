@@ -33,7 +33,8 @@ fi
 
 # emsdk_env.sh schrijft naar stdout — laten we sanity-output onderdrukken
 # tenzij user expliciet AMIGAHORSE_VERBOSE_EMSDK=1 zet.
-if [[ -n "${AMIGAHORSE_VERBOSE_EMSDK}" ]]; then
+# Default-leeg-pattern voorkomt 'unbound variable' onder `set -u`.
+if [[ -n "${AMIGAHORSE_VERBOSE_EMSDK:-}" ]]; then
     # shellcheck source=/dev/null
     source "${EMSDK_PATH}/emsdk_env.sh"
 else

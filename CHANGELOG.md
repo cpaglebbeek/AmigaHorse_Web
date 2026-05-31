@@ -2,6 +2,38 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Codenamen uit pool `Meta_AmigaHorse/CLAUDE.md`.
 
+## [0.0.3-Flashback] — 2026-05-31 (v0.0.2.x sub-step 3: WASM-build werkt, eerste artefact)
+
+> Eerste echte WASM-build → "Geen build zonder bump" → VERSION-bump 0.0.2-CannonFodder → 0.0.3-Flashback.
+> Codenaam: **Flashback** (Delphine Software 1992, rotoscope-action — "flash"compile + retro-doorbraak).
+> Kleur: **Groen +0.0.1** (pipeline-uitvoer van eerder genomen v0.0.2-besluit; geen nieuwe architectuur).
+
+### Added
+- **vAmigaWeb WASM-build werkend** via `tools/build-wasm.sh`
+  - `dist/vendor/vamigaweb/vAmiga.js`   (106 KB Emscripten glue)
+  - `dist/vendor/vamigaweb/vAmiga.wasm` (8.77 MB Amiga-emulator binary)
+- `tools/build-wasm.sh`: idempotente pipeline (emsdk source + cmake configure + cmake build + copy naar dist/)
+- `package.json` `build:wasm` script wijst nu naar werkende pipeline (`bash tools/build-wasm.sh`)
+- `.gitignore` uitgebreid met vAmigaWeb-build-uitvoer-artefacten in submodule (`vAmiga.html/js/wasm`, `sw.js`)
+
+### Changed
+- `src/wasm-bridge.js`: stubs nu gelabeld met concrete export-naam uit CMakeLists EXPORTED_FUNCTIONS (`_wasm_loadFile`, `_wasm_save_workspace`, `_wasm_load_workspace`, `_wasm_auto_type`, `_wasm_joystick`). Echte `cwrap`-binding komt in sub-step 4.
+- `src/wasm-bridge.js`: `crossOriginIsolated` is geen hard-requirement meer (nonworker-build vereist géén SharedArrayBuffer); check verplaatst naar enkel-bij-worker-mode
+
+### Verified
+- emcc 5.0.7 + cmake 4.3.3 + C++20: vAmigaWeb compileert clean op macOS arm64 (Darwin 25.3.0)
+- Build-tijd warm-cache: ~1 minuut; cold-cache (eerste sysroot-libs): ~3-4 min
+- Build-dir: 92 MB (incl. intermediates; alleen 8.87 MB output-artefacten relevant voor runtime)
+- Géén `_wasm_mountDH` of vergelijkbare hostfs-export → bevestigt fallback-strategie sub-step 4: on-the-fly ADF-rebuild bij `.bas`-injection
+
+### Decided (concretisering sub-step 4)
+- vAmigaWeb gebruikt `_wasm_loadFile` voor disk/cart-import (ondersteunt ADF, ROM, etc.). BASIC-mode-flow: bouw on-the-fly leeg ADF met FFS-volume `BAS`, schrijf `launch.bas` erin, geef aan `_wasm_loadFile` met df-target. Geen native hostfs-koppeling nodig.
+- vAmigaWeb-thread-mode = **nonworker** (default). Geen COOP+COEP-headers verplicht voor v0.0.3. Voordeel: deploy-vriendelijk (icthorse.nl static-hosting werkt zonder header-tweaks). Switch naar worker-mode = v0.x feature-keuze.
+
+### Not yet (v0.0.2.x sub-steps 4-5)
+- Sub-step 4: dynamic import van `dist/vendor/vamigaweb/vAmiga.js` + Module()-instantiation + cwrap-bindings voor de ~10 essentiele functies
+- Sub-step 5: warm-snapshot-bake (via `_wasm_save_workspace`) + ADF-rebuild voor `.bas`-injection + e2e HELLO WORLD-test
+
 ## [0.0.2.2] — 2026-05-31 (v0.0.2.x sub-step 2: Emscripten install)
 
 ### Added
