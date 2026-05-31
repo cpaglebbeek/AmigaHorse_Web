@@ -2,6 +2,54 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Codenamen uit pool `Meta_AmigaHorse/CLAUDE.md`.
 
+## [0.0.4-Speedball2] — 2026-05-31 (v0.0.2.x sub-step 4: cwrap-bindings + ADF-builder + dev-pipeline)
+
+> Concrete JS-wiring naar vAmiga-WASM + pure-JS OFS-ADF-builder voor BASIC-injection + esbuild dev-server. Géén live-test yet (sub-step 5).
+> Codenaam **Speedball 2** (Bitmap Brothers 1990, action-sports — fitting infrastructuur-acceleratie).
+> Kleur **Groen +0.0.1** (JS-wiring zonder architectuurwijziging; Oranje +0.1.0 spaar ik voor sub-step 5 wanneer warm-snapshot daadwerkelijk werkt).
+
+### Added
+- **`src/wasm-bridge.js` herschreven** met concrete bindings:
+  - `init()` Promise-based, idempotent, classic-script-load met `Module.onRuntimeInitialized`-callback
+  - `bindFunctions()` → 8 cwrap-bindings: `run`, `halt`, `reset`, `powerOn`, `configure`, `key`, `scheduleKey`, `loadFile`
+  - `loadFile(name, buf, drive)` met handmatige `_malloc` + `HEAPU8.set` + `_free` voor u8*-passing
+  - `saveStateToBuffer()` / `restoreStateFromBuffer(buf)` — wrappers rond `wasm_save_workspace` + Emscripten-FS-pad
+  - IndexedDB-helpers (`storeAsset`, `loadAsset`, `hasWarmSnapshot`) — Promise-vorm
+- **`src/lib/build-blank-adf.js` nieuw** — pure-JS OFS-ADF-builder voor BASIC-injection:
+  - `buildAdfWithBasFile(basContent, fileName, volumeLabel)` → 901120-byte ADF Uint8Array
+  - Boot block + Root block (sec 880) + Bitmap (sec 881) + File-header (sec 882) + Data-block (sec 883)
+  - Correcte OFS-checksums (sum mod 2^32, negated)
+  - Amiga-string-encoding (length-prefix BCPL-stijl) + amigaHash voor dir-hash-tabel
+  - Limiet v0.0.4: 488 bytes (1 OFS data-block) — voldoende voor HELLO WORLD
+- **`esbuild.config.mjs` herschreven** met dev-server modus:
+  - `npm run dev` → context.serve op :8000 + watch op src/
+  - `npm run build` → één-shot productie-bundle (minified)
+  - HTML-routes worden ge-copy-ed bij elk run; vendor/vamigaweb/ check + warning bij ontbreken
+  - 5 entry-points (wasm-bridge, build-blank-adf, quick-launch, setup, library)
+- **`package.json` scripts** bijgewerkt:
+  - `dev` / `build` → `node esbuild.config.mjs [--dev]`
+  - `build:all` → `build:wasm + build` (one-shot full pipeline)
+- **Smoke-test-knop op `/basic/`** — drukt `init()` af en toont aantal beschikbare cwrap-bindings. Bewijs van leven vóór sub-step 5 live test.
+- **`src/basic/quick-launch.js`** gebruikt nu echte API: `init`, `getBindings`, `hasWarmSnapshot`, `buildAdfWithBasFile`. Toont ADF-byte-count bij `.bas`-drop (sub-step 5 voegt restore + loadFile + scheduleKey toe).
+
+### Decided
+- Loading-strategie: **classic Emscripten Module + onRuntimeInitialized-callback** (geen `-sMODULARIZE` switch in CMakeLists). Werkt direct met onze pinned vAmigaWeb-commit.
+- ADF-builder is bewust apart van vAmigaWeb-vendor-code (P-AMH-09: BASIC als first-class use-case; eigen JS-tool).
+- Multi-block file-support (>488 bytes) uitgesteld naar v0.0.5 — eerst end-to-end bewijzen met klein bestandje.
+- COOP+COEP-headers in dev-server **nog niet geactiveerd** (esbuild's serve-API biedt geen direct headers-API; sub-step 5 voegt eigen middleware-laag toe als nodig — voor nonworker-mode niet kritiek).
+
+### Verified
+- `node --check` op alle JS-files passt: wasm-bridge, build-blank-adf, quick-launch, setup, library, esbuild.config.mjs
+- ADF-builder structuur volgens Laurent Clévy's ADF-spec + Aminet ADFLib refs: SECTOR_SIZE=512, SECTORS=1760, ROOT_BLOCK=880, OFS data-payload=488 bytes/block
+
+### Not yet (sub-step 5)
+- Live test van smoke-test in browser (vereist `npm install` + `npm run dev`)
+- Volledige BASIC-flow end-to-end met user-supplied KS 1.3 + WB 1.3 + AmigaBASIC binary
+- Warm-snapshot-bake-flow in `src/basic/setup.js` (vereist sequenced boot + AmigaBASIC-launch)
+- AmigaKeyboard rawkey-codes mapping (`src/lib/amiga-keymap.js`) voor scheduleKey
+- Multi-block ADF-builder voor files >488 bytes
+- COOP+COEP-headers in dev-server (alleen als worker-mode in v0.x)
+
 ## [0.0.3-Flashback] — 2026-05-31 (v0.0.2.x sub-step 3: WASM-build werkt, eerste artefact)
 
 > Eerste echte WASM-build → "Geen build zonder bump" → VERSION-bump 0.0.2-CannonFodder → 0.0.3-Flashback.

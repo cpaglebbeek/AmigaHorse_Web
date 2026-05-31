@@ -1,102 +1,209 @@
-// AmigaHorse_Web — wasm-bridge.js (v0.0.3-Flashback, sub-step 3 integratie)
+// AmigaHorse_Web — wasm-bridge.js (v0.0.4-Speedball2, sub-step 4)
 //
-// Typed wrapper rondom vAmigaWeb's WASM-exports. Eén centrale module die alle
-// vAmiga-calls bundelt, zodat /basic/ en /full/ routes dezelfde API gebruiken.
+// Concrete cwrap-bindings rondom vAmigaWeb's WASM-exports + IndexedDB-helpers
+// + workspace save/restore (via Emscripten-FS pad).
 //
 // vAmigaWeb (https://github.com/vAmigaWeb/vAmigaWeb) is GPL-3.0; submodule
 // `external/vamigaweb/` pinned commit c3c50d9 (v0.0.2.1).
 //
-// WASM-artefacten geproduceerd door tools/build-wasm.sh (v0.0.3-Flashback):
-//   dist/vendor/vamigaweb/vAmiga.js     (106 KB, Emscripten glue)
-//   dist/vendor/vamigaweb/vAmiga.wasm   (8.77 MB, Amiga-emulator binary)
+// WASM-artefacten geproduceerd door tools/build-wasm.sh:
+//   dist/vendor/vamigaweb/vAmiga.js     (106 KB Emscripten glue, classic-mode)
+//   dist/vendor/vamigaweb/vAmiga.wasm   (8.77 MB Amiga-emulator binary)
 //
-// Sub-step 3 = build pipeline werkt, artefacten in dist/. Sub-step 4 = exports
-// verifieren + concrete API-mapping. Sub-step 5 = end-to-end BASIC.bas test.
+// Loading-strategie: vAmiga.js is een classic-Emscripten-script (NIET ES-module).
+// We pre-zetten window.Module met locateFile, injecteren <script src=vAmiga.js>,
+// en wachten op Module.onRuntimeInitialized voordat we cwrap-bindings opstellen.
 //
-// Beschikbare exports uit CMakeLists.txt (~60 _wasm_-functies):
-//   - _wasm_loadFile         disk/cart-laden
-//   - _wasm_save_workspace   save-state (basis voor warm-snapshot P-AMH-09)
-//   - _wasm_load_workspace   restore-state
-//   - _wasm_auto_type        keyboard injection (BASIC LOAD/RUN flow)
-//   - _wasm_run / _wasm_halt emulator-control
-//   - _wasm_pixel_buffer     framebuffer-pointer voor canvas-blit
-//   - _wasm_get_sound_buffer_address  AudioWorklet-sink
-//   - (volledige lijst: zie external/vamigaweb/CMakeLists.txt EXPORTED_FUNCTIONS)
+// Beschikbare cwrap-functies (uit main.cpp + EXPORTED_FUNCTIONS):
+//   loadFile(name, buf, drive)       const char*  -- name + u8*buf + len + drive_number
+//   run()                            void          -- start emulatie
+//   halt()                           void          -- pauze
+//   reset()                          void          -- soft reset
+//   powerOn(on)                      const char*  -- 0=off, 1=on
+//   scheduleKey(c1, c2, pressed, delay) void       -- keyboard scheduling
+//   key(code, pressed)               void          -- direct key event
+//   saveWorkspace(path)              char*         -- save-state naar FS-path
+//   loadWorkspace(path)              void          -- restore-state vanaf FS-path
+//   configure(option, value)         const char*  -- runtime config tweaks
 //
-// Géén `mountDH`-export gevonden → sub-step 4 bevestigt fallback: on-the-fly
-// ADF-rebuild voor `.bas`-injection via _wasm_loadFile-DH1:-pad.
+// Workspace-flow (P-AMH-04):
+//   1. saveStateToBuffer() = wasm_save_workspace('/tmp/snap.vamiga') + FS.readFile
+//   2. restoreStateFromBuffer(buf) = FS.writeFile('/tmp/snap.vamiga', buf) + wasm_load_workspace
 //
-// Zie docs/BASIC_MODE.md voor het complete data-flow per route.
+// BASIC-injection (P-AMH-09, geen mountDH):
+//   on-the-fly OFS-ADF met launch.bas → wasm_loadFile(buf, df=1) → DF1: in Amiga
+//   keyboard sequence: `LOAD "DF1:launch.bas"<CR>` + auto-RUN ? `RUN<CR>` : geen
+//   keyboard codes via src/lib/amiga-keymap.js (sub-step 5)
+
+const VAMIGA_BASE = '/vendor/vamigaweb';
+const SCRIPT_URL = `${VAMIGA_BASE}/vAmiga.js`;
 
 const STATE = {
-  vamiga: null,           // ingeladen vAmiga-WASM instantie
+  module: null,           // Emscripten Module instance (na onRuntimeInitialized)
   ready: false,
-  currentRoute: null,     // 'basic' | 'full'
+  bindings: null,         // { loadFile, run, halt, ... } na bindFunctions()
+  loadPromise: null,      // gedeelde init()-promise (idempotent)
   warmSnapshotKey: 'basic-env-snapshot',
 };
 
 /**
- * Initialiseer vAmiga-WASM. Vereist COOP+COEP-headers voor SharedArrayBuffer.
+ * Initialiseer vAmiga-WASM. Idempotent: meerdere calls geven dezelfde instance.
  *
- * v0.0.3-Flashback: artefacten beschikbaar in dist/vendor/vamigaweb/. Concrete
- * dynamic import + Module()-instantiation komt in sub-step 4 (na export-audit).
- *
- * Nonworker-build (CMakeLists thread_type=nonworker) → géén SharedArrayBuffer
- * verplicht; crossOriginIsolated wordt alleen vereist als we naar worker-mode
- * switchen in v0.0.x+.
+ * Verwacht dat dist/vendor/vamigaweb/vAmiga.{js,wasm} bestaat (gegenereerd door
+ * tools/build-wasm.sh, zie external/README.md).
  */
-export async function init() {
-  if (STATE.ready) return STATE.vamiga;
+export function init() {
+  if (STATE.ready) return Promise.resolve(STATE);
+  if (STATE.loadPromise) return STATE.loadPromise;
 
-  // TODO sub-step 4: replace stubs met daadwerkelijke dynamic import:
-  //   const vamigaModule = await import('/vendor/vamigaweb/vAmiga.js');
-  //   STATE.vamiga = await vamigaModule.default({
-  //     locateFile: (p) => `/vendor/vamigaweb/${p}`,
-  //   });
-  //   STATE.vamiga.loadFile  = STATE.vamiga.cwrap('wasm_loadFile', ...)
-  //   STATE.vamiga.saveState = STATE.vamiga.cwrap('wasm_save_workspace', ...)
-  //   STATE.vamiga.loadState = STATE.vamiga.cwrap('wasm_load_workspace', ...)
-  //   STATE.vamiga.autoType  = STATE.vamiga.cwrap('wasm_auto_type', ...)
-  //   ...
+  STATE.loadPromise = new Promise((resolve, reject) => {
+    // Voorkom dubbele Module-globals
+    if (window.Module && !window.Module._isAmigaHorseStub) {
+      reject(new Error('window.Module al gezet door iets anders'));
+      return;
+    }
 
-  STATE.vamiga = {
-    start: () => console.warn('[wasm-bridge] STUB vAmiga.start — sub-step 4'),
-    stop: () => console.warn('[wasm-bridge] STUB vAmiga.stop'),
-    loadKickstart: (_buf) => console.warn('[wasm-bridge] STUB loadKickstart → _wasm_loadFile'),
-    loadADF: (_buf, _df) => console.warn('[wasm-bridge] STUB loadADF → _wasm_loadFile'),
-    mountDH: (_hostPath) => console.warn('[wasm-bridge] mountDH ontbreekt in vAmigaWeb — fallback ADF-rebuild sub-step 4'),
-    saveState: () => new Uint8Array(0),       // → _wasm_save_workspace
-    restoreState: (_buf) => console.warn('[wasm-bridge] STUB restoreState → _wasm_load_workspace'),
-    injectKey: (_text) => console.warn('[wasm-bridge] STUB injectKey → _wasm_auto_type'),
-    injectJoy: (_port, _dx, _dy, _fire) => console.warn('[wasm-bridge] STUB injectJoy → _wasm_joystick'),
-  };
-  STATE.ready = true;
-  return STATE.vamiga;
+    window.Module = {
+      _isAmigaHorseStub: true,
+      locateFile: (p) => `${VAMIGA_BASE}/${p}`,
+      onRuntimeInitialized: () => {
+        STATE.module = window.Module;
+        STATE.bindings = bindFunctions(window.Module);
+        STATE.ready = true;
+        resolve(STATE);
+      },
+      onAbort: (reason) => {
+        reject(new Error(`vAmiga onAbort: ${reason}`));
+      },
+      print: (msg) => console.log('[vAmiga]', msg),
+      printErr: (msg) => console.warn('[vAmiga:err]', msg),
+    };
+
+    const s = document.createElement('script');
+    s.src = SCRIPT_URL;
+    s.onerror = () => reject(new Error(`Kan ${SCRIPT_URL} niet laden — heb je 'npm run build:wasm' gedraaid?`));
+    document.head.appendChild(s);
+  });
+
+  return STATE.loadPromise;
 }
 
 /**
- * Asset-Setup-resultaat in IndexedDB schrijven.
- * Zie src/basic/setup.js voor flow.
+ * Bind alle relevante wasm_*-functies via cwrap.
+ * Buffer-passing functies (loadFile / workspace) hebben handmatige _malloc + HEAPU8.set.
+ */
+function bindFunctions(Module) {
+  const cwrap = Module.cwrap;
+
+  const run = cwrap('wasm_run', 'void', []);
+  const halt = cwrap('wasm_halt', 'void', []);
+  const reset = cwrap('wasm_reset', 'void', []);
+  const powerOn = cwrap('wasm_power_on', 'string', ['number']);
+  const scheduleKey = cwrap('wasm_schedule_key', 'void', ['number', 'number', 'number', 'number']);
+  const key = cwrap('wasm_key', 'void', ['number', 'number']);
+  const configure = cwrap('wasm_configure', 'string', ['string', 'string']);
+  const saveWorkspaceRaw = cwrap('wasm_save_workspace', 'string', ['string']);
+  const loadWorkspaceRaw = cwrap('wasm_load_workspace', 'void', ['string']);
+
+  /**
+   * wasm_loadFile(name, u8*buf, long len, u8 drive_number) → const char*
+   * Buffer geheugen-allocatie in HEAPU8 + free na call.
+   */
+  function loadFile(name, buf, drive) {
+    const len = buf.length;
+    const ptr = Module._malloc(len);
+    if (ptr === 0) throw new Error(`Module._malloc(${len}) faalde`);
+    try {
+      Module.HEAPU8.set(buf, ptr);
+      const namePtr = Module.stringToNewUTF8(name);
+      try {
+        const resultPtr = Module._wasm_loadFile(namePtr, ptr, len, drive);
+        const result = Module.UTF8ToString(resultPtr);
+        return result || '';
+      } finally {
+        Module._free(namePtr);
+      }
+    } finally {
+      Module._free(ptr);
+    }
+  }
+
+  /**
+   * Save current emulator state naar Uint8Array.
+   * Implementatie: vAmiga's wasm_save_workspace schrijft naar Emscripten-FS-pad,
+   * dan FS.readFile + cleanup.
+   */
+  function saveStateToBuffer() {
+    const path = '/tmp/amigahorse.snap';
+    saveWorkspaceRaw(path);
+    const buf = Module.FS.readFile(path);
+    try { Module.FS.unlink(path); } catch (_) { /* ok */ }
+    return new Uint8Array(buf);
+  }
+
+  /**
+   * Restore state vanuit Uint8Array.
+   */
+  function restoreStateFromBuffer(buf) {
+    const path = '/tmp/amigahorse.snap';
+    // Zorg dat /tmp bestaat (Emscripten heeft /tmp default in MEMFS)
+    Module.FS.writeFile(path, buf);
+    loadWorkspaceRaw(path);
+    try { Module.FS.unlink(path); } catch (_) { /* ok */ }
+  }
+
+  return {
+    // Emulator control
+    run, halt, reset, powerOn, configure,
+    // Input
+    key, scheduleKey,
+    // I/O
+    loadFile,
+    // State
+    saveStateToBuffer, restoreStateFromBuffer,
+  };
+}
+
+/**
+ * Convenience: roep init() en geef bindings terug.
+ */
+export async function getBindings() {
+  const state = await init();
+  return state.bindings;
+}
+
+// ---------------------------------------------------------------------------
+// IndexedDB-helpers (asset-storage, blijft buiten vAmiga-Module)
+// ---------------------------------------------------------------------------
+
+/**
+ * Asset in IndexedDB schrijven.
  */
 export async function storeAsset(storeName, label, blob) {
   const db = await openDB();
-  const tx = db.transaction(storeName, 'readwrite');
-  await tx.objectStore(storeName).put({ label, blob, created: Date.now() });
-  await tx.done;
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readwrite');
+    tx.objectStore(storeName).put({ label, blob, created: Date.now() });
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
 }
 
 /**
- * Asset uit IndexedDB terughalen.
+ * Asset uit IndexedDB ophalen.
  */
 export async function loadAsset(storeName, label) {
   const db = await openDB();
-  const tx = db.transaction(storeName, 'readonly');
-  return tx.objectStore(storeName).get(label);
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readonly');
+    const req = tx.objectStore(storeName).get(label);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
 }
 
 /**
- * Check of warm-snapshot bestaat (basic-env-snapshot in amigahorse-states).
- * Gebruikt door /basic/ index.html om redirect naar /basic/setup te besluiten.
+ * Check of warm-snapshot bestaat.
  */
 export async function hasWarmSnapshot() {
   const snap = await loadAsset('amigahorse-states', STATE.warmSnapshotKey);
@@ -105,7 +212,6 @@ export async function hasWarmSnapshot() {
 
 /**
  * Open IndexedDB en zorg dat alle stores bestaan.
- * Schema: 4 object-stores (kickstart / disks / states / config).
  */
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -124,4 +230,4 @@ function openDB() {
   });
 }
 
-export { STATE as _state };  // alleen voor debugging
+export { STATE as _state };  // debugging-toegang

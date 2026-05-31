@@ -11,10 +11,11 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "esbuild --config=esbuild.config.mjs --serve=8000 --servedir=dist --watch",
-    "build": "esbuild --config=esbuild.config.mjs --minify",
+    "dev": "node esbuild.config.mjs --dev",
+    "build": "node esbuild.config.mjs",
     "build:wasm": "bash tools/build-wasm.sh",
-    "clean": "rm -rf dist build node_modules/.cache",
+    "build:all": "npm run build:wasm && npm run build",
+    "clean": "rm -rf dist node_modules/.cache",
     "preview": "npx --yes serve dist --cors --listen 8000"
   },
   "devDependencies": {
