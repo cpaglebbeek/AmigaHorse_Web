@@ -2,6 +2,53 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Codenamen uit pool `Meta_AmigaHorse/CLAUDE.md`.
 
+## [0.0.7-ChaosEngine] — 2026-06-01 (sub-step 7: audio-sink + pixel-format-auto-detect)
+
+> Codenaam **Chaos Engine** (Bitmap Brothers 1993, atmosferische audio + complex render-engine — fitting audio-pipeline + pixel-handling).
+> Kleur **Groen +0.0.1** (nieuwe pipeline-laag binnen bestaande architectuur). Oranje +0.1.0 spaar ik tot user e2e-bewijs.
+
+### Added
+- **`src/lib/audio-setup.js` werkende sink** (uitgebreid van skelet)
+  - `ScriptProcessorNode` buffer-size 2048 samples (~46ms @ 44.1kHz)
+  - `onaudioprocess`-callback: `bindings.copyIntoSoundBuffer()` → lees L+R float-pointers uit HEAPF32 → kopieer naar stereo output met `[-1, 1]`-clamp
+  - `resume()` / `suspend()` / `mute()` / `unmute()` API
+  - Underrun-detection met 5s log-rate-limit
+  - Silence-fill bij fouten (geen audio-glitch-crashes)
+- **`src/lib/canvas-renderer.js` pixel-format-auto-detect**
+  - `_detectPixelFormat(heapView)` heuristiek: vAmiga zet alpha=0xFF op alle pixels; we sampelen 8 verspreide pixels en kijken of `0xFF` in byte-0 (ARGB) of byte-3 (RGBA) staat
+  - `_copyPixels(heapView, dst)` doet `data.set()` voor RGBA-direct of byte-shuffle voor ARGB→RGBA
+  - Detectie bij eerste valide frame; console.log toont gedetecteerd formaat
+- **`src/basic/quick-launch.js` audio-resume-on-gesture**
+  - `document.body.addEventListener('click', ..., { once: true })` resume't audio bij eerste click (Chrome auto-block-policy)
+  - `.bas`-drop = user-gesture → direct `audioSetup.resume()` na init
+- **`src/lib/audio-processor-TODO.md`** placeholder voor v0.x AudioWorklet-migratie
+  - Migratie-plan: Optie A (SharedArrayBuffer + COOP+COEP, ~5ms latency, ~150r) vs Optie B (postMessage, ~20ms, ~80r)
+  - Trigger voor migratie: latency-klacht, worker-mode-nodig, of browser deprecation-notice
+
+### Changed
+- `AudioSetup` constructor signature: `new AudioSetup(bindings, Module)` (was `bindings` only) — Module nodig voor HEAPF32-access
+- `src/basic/quick-launch.js` aangepast voor 2-arg constructor
+
+### Verified
+- `node --check` op 10 JS-files OK
+- `npm run build` 30ms minified
+- Dev-server :5173 alle routes 200
+- Bundle bevat `ScriptProcessor` + `onaudioprocess` + `HEAPF32` (audio-pipeline ge-link)
+- Bundle-size quick-launch: 6.6 KB → 9.2 KB (audio + pixel-detect logic erbij)
+
+### Decided
+- **ScriptProcessorNode** boven AudioWorklet voor v0.0.7 — werkt zonder COOP+COEP-headers / SharedArrayBuffer / worker-mode. Latency ~46ms acceptabel voor retro. AudioWorklet → v0.x als nodig
+- Pixel-detect via alpha-byte-positie: simpel + werkt voor vAmiga (alpha altijd 0xFF). Eerste detect bij frame ≥1 valide pixel-buffer
+- Audio-context-unlock via `once: true` body-click listener — robuust pattern voor Chrome
+
+### Not yet (sub-step 8 of v0.1.0+)
+- AudioWorklet migratie (alleen als latency-issue ontstaat)
+- Mouse-coords WB-icon-tunen (vereist live test)
+- Multi-block ADF >488 bytes
+- Full mode rendering
+- Gamepad-API
+- Save-state synchronisatie tussen Quick BASIC en Full mode
+
 ## [0.0.6-Apidya] — 2026-06-01 (sub-step 6: canvas-render + mouse-emulation + audio-skelet)
 
 > Codenaam **Apidya** (Kaiko 1992, shoot-em-up bekend om state-of-the-art Amiga graphics — fitting render-pipeline).

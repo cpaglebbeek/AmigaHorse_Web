@@ -36,6 +36,52 @@ export class CanvasRenderer {
     this.frameCount = 0;
     this.lastFpsCheck = 0;
     this.fps = 0;
+    // Pixel-format-detect (sub-step 7): vAmiga schrijft alpha=0xFF op alle pixels;
+    // we kijken bij eerste valide frame of byte-0 of byte-3 == 0xFF om RGBA vs ARGB
+    // te onderscheiden. `null` = nog niet bepaald.
+    this.pixelFormat = null;   // 'RGBA' | 'ARGB' | null
+  }
+
+  /**
+   * Heuristiek: vAmiga zet alpha=0xFF op alle pixels. Detecteer of het in byte-0
+   * (ARGB / Mac/iOS-stijl) of byte-3 (RGBA / Canvas2D-stijl) staat.
+   *
+   * Test op meerdere pixels om noise te vermijden.
+   */
+  _detectPixelFormat(heapView) {
+    // Sample 8 pixels verspreid over de buffer
+    const stride = Math.max(4, Math.floor(heapView.length / 8 / 4) * 4);
+    let rgbaScore = 0;
+    let argbScore = 0;
+    for (let i = 0; i < heapView.length - 4; i += stride) {
+      if (heapView[i + 3] === 0xFF) rgbaScore++;
+      if (heapView[i + 0] === 0xFF) argbScore++;
+    }
+    if (argbScore > rgbaScore) return 'ARGB';
+    return 'RGBA';   // default (Canvas2D-conventie + onbeslist)
+  }
+
+  /**
+   * Kopieer pixel-data van WASM-heap naar ImageData.data, met format-conversie
+   * indien nodig.
+   */
+  _copyPixels(heapView, dst) {
+    if (this.pixelFormat === 'ARGB') {
+      // ARGB → RGBA: shift bytes [A,R,G,B] → [R,G,B,A]
+      for (let i = 0; i < heapView.length; i += 4) {
+        const a = heapView[i];
+        const r = heapView[i + 1];
+        const g = heapView[i + 2];
+        const b = heapView[i + 3];
+        dst[i]     = r;
+        dst[i + 1] = g;
+        dst[i + 2] = b;
+        dst[i + 3] = a;
+      }
+    } else {
+      // RGBA direct
+      dst.set(heapView);
+    }
   }
 
   /**
@@ -86,12 +132,17 @@ export class CanvasRenderer {
         // Kopieer pixel-buffer uit WASM-heap naar ImageData.data
         const ptr = this.bindings.pixelBuffer();
         if (ptr !== 0) {
-          // Texel = u32 = 4 bytes. Layout aanname: little-endian RGBA (= Canvas2D
-          // default voor ImageData op zowat alle hardware). Als vAmiga ARGB
-          // schrijft (Mac/iOS-style), zien we kleurkanaal-swap → fix in v0.0.7.
+          // Texel = u32 = 4 bytes per pixel.
           const bytes = w * h * 4;
           const heapView = this.Module.HEAPU8.subarray(ptr, ptr + bytes);
-          this.imageData.data.set(heapView);
+
+          // Sub-step 7: pixel-format-auto-detect bij eerste frame
+          if (this.pixelFormat === null && heapView.length >= 4) {
+            this.pixelFormat = this._detectPixelFormat(heapView);
+            console.log(`[canvas-renderer] pixel-format gedetecteerd: ${this.pixelFormat}`);
+          }
+
+          this._copyPixels(heapView, this.imageData.data);
           this.ctx.putImageData(this.imageData, 0, 0);
         }
       }

@@ -75,10 +75,12 @@ async function handleBasFile(file) {
     const bindings = await getBindings();
     const Module = await getModule();
 
-    // Init audio (sub-step 6: alleen sample-rate; echte sink sub-step 7)
+    // Init audio (sub-step 7: ScriptProcessorNode sink)
     if (!audioSetup) {
-      audioSetup = new AudioSetup(bindings);
+      audioSetup = new AudioSetup(bindings, Module);
       await audioSetup.init();
+      // Chrome blockt audio tot user-gesture: drop = gesture → resume direct.
+      await audioSetup.resume();
     }
 
     setStatus('Restore warm-snapshot (BASIC-prompt-state)...');
@@ -123,6 +125,12 @@ async function handleBasFile(file) {
     setStatus(`Fout: ${err.message}`, 'error');
   }
 }
+
+// Auto-resume audio bij eerste click ergens op de pagina (Chrome policy).
+// `once: true` — runs maar één keer.
+document.body.addEventListener('click', async () => {
+  if (audioSetup) await audioSetup.resume();
+}, { once: true });
 
 async function runSmokeTest() {
   smokeTestButton.disabled = true;
