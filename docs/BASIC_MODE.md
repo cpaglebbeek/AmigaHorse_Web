@@ -32,7 +32,7 @@ Geef Amiga-liefhebbers die zelf `.bas`-programma's hebben geschreven (of nog wil
 | Kickstart | 1.3 (rev 34.005) | User-supplied via `/basic/setup` |
 | Workbench | 1.3 ADF | User-supplied via `/basic/setup` |
 | BASIC-interpreter | Microsoft AmigaBASIC 1.x | User-supplied via `/basic/setup` |
-| Emulator-core | vAmiga via vAmigaWeb-fork | GitHub: dirkwhoffmann/vAmigaWeb (GPL-3.0 → AGPL-3.0) |
+| Emulator-core | vAmiga via vAmigaWeb-fork | GitHub: vAmigaWeb/vAmigaWeb (GPL-3.0 → AGPL-3.0) |
 
 ## Flow detail
 

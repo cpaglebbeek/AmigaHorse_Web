@@ -2,28 +2,43 @@
 
 > Upstream-afhankelijkheden als git-submodules. Niet in `dist/`-build; gebouwd naar WASM en gelinkt vanuit `src/wasm-bridge.js`.
 
-## vAmigaWeb (gepland, v0.0.2.x)
+## vAmigaWeb (toegevoegd v0.0.2.1, 2026-05-31)
 
-**Bron:** [dirkwhoffmann/vAmigaWeb](https://github.com/dirkwhoffmann/vAmigaWeb) (GPL-3.0)
-**Licentie-pad:** GPL-3.0 → AGPL-3.0 upgrade legaal via "or later"-clausule
-**Toevoegen:**
+**Bron:** [vAmigaWeb/vAmigaWeb](https://github.com/vAmigaWeb/vAmigaWeb) (GPL-3.0)
+**Pinned commit:** `c3c50d9` (2026-05-28, vAmigaWeb v4-merge)
+**Licentie-pad:** GPL-3.0 → AGPL-3.0 upgrade legaal via "or later"-clausule (GPL-3.0 §14)
+**Audit:** zie `Meta_AmigaHorse/docs/UPSTREAM_AUDIT.md` baseline-entry 1
+
+**Géén releases / tags beschikbaar bij upstream** — gepind op commit. Open suggestie voor upstream-PR (P-AMH-01): "release-tags toevoegen bij elke v4/v5-milestone".
+
+**Update protocol:**
 
 ```bash
-cd /Users/christian/Documents/Gemini_Projects/AmigaHorse_Web
-git submodule add https://github.com/dirkwhoffmann/vAmigaWeb.git external/vamigaweb
-git commit -m "Add vAmigaWeb v<tag> als submodule voor Web-core (v0.0.2.x)"
-git push
+cd /Users/christian/Documents/Gemini_Projects/AmigaHorse_Web/external/vamigaweb
+git fetch
+git log <pinned>..origin/main --oneline    # bekijk wijzigingen
+git checkout <new-commit>
+cd ..
+git add external/vamigaweb
+git commit -m "Bump vAmigaWeb to <new-commit> + audit-update"
 ```
 
-Pin op laatste **release-tag** (geen floating main). Bij tag-update: per-file-license-audit conform `Meta_AmigaHorse/CLAUDE.md` (vAmigaWeb bevat vAmiga-core uit eigen GPL-3.0 project + WebGL/AudioWorklet glue).
+Bij elke bump: per-file-license-audit conform `Meta_AmigaHorse/CLAUDE.md` (vAmigaWeb bevat vAmiga-core gevendored in `Core/`-directory + WebGL/AudioWorklet glue).
 
-## vAmiga (transitive)
+## vAmiga (vendored in vAmigaWeb/Core/)
 
-vAmigaWeb gebruikt [dirkwhoffmann/vAmiga](https://github.com/dirkwhoffmann/vAmiga) als upstream-emulator (C++). Wordt automatisch meegeklond als sub-submodule of als source-include — zie vAmigaWeb-README bij toevoegen.
+[dirkwhoffmann/vAmiga](https://github.com/dirkwhoffmann/vAmiga) zit **niet als sub-submodule**, maar is vendored als source-tree in `external/vamigaweb/Core/`. Géén transitive submodule risico.
+
+3-tier licentie binnen vAmiga:
+- vAmiga-app: GPL-3.0-or-later (niet vendored — alleen Mac-app, irrelevant voor Web)
+- Core Emulator (CPU, Custom, Floppy, FileSystems, …): MPL-2.0
+- Moira (68k CPU): MIT
+
+Alle drie AGPL-3.0-compat.
 
 ## Waarom geen direct vAmiga?
 
-vAmigaWeb wraps vAmiga met de Emscripten/WebAssembly-glue + AudioWorklet + WebGL framebuffer-blit + dropbox/google-drive-helpers. Die glue is voor ons hergebruikbaar; we hoeven niet zelf vAmiga te emscripten-porteren.
+vAmigaWeb wraps vAmiga met de Emscripten/WebAssembly-glue + AudioWorklet + WebGL framebuffer-blit. Die glue is voor ons hergebruikbaar; we hoeven niet zelf vAmiga te emscripten-porteren.
 
 We forken **vAmigaWeb** (niet upstream) zodra we eigen patches nodig hebben voor:
 - BASIC-mode hostfs-injection (`mountDH` API te verifieren)

@@ -3,7 +3,7 @@
 // Typed wrapper rondom vAmigaWeb's WASM-exports. Eén centrale module die alle
 // vAmiga-calls bundelt, zodat /basic/ en /full/ routes dezelfde API gebruiken.
 //
-// vAmigaWeb (https://github.com/dirkwhoffmann/vAmigaWeb) is GPL-3.0; toegevoegd
+// vAmigaWeb (https://github.com/vAmigaWeb/vAmigaWeb) is GPL-3.0; toegevoegd
 // als git-submodule in external/vamigaweb/ in v0.0.2.x. Tot dan: stubs hieronder.
 //
 // Zie docs/BASIC_MODE.md voor het complete data-flow per route.

@@ -1,0 +1,3 @@
+[submodule "external/vamigaweb"]
+	path = external/vamigaweb
+	url = https://github.com/vAmigaWeb/vAmigaWeb.git

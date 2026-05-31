@@ -2,6 +2,35 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Codenamen uit pool `Meta_AmigaHorse/CLAUDE.md`.
 
+## [0.0.2.1] — 2026-05-31 (v0.0.2.x sub-step 1: submodule add)
+
+### Added
+- **`external/vamigaweb`** als git-submodule, pinned commit `c3c50d9` (vAmigaWeb v4-merge 2026-05-28, GPL-3.0)
+- `.gitmodules` toegevoegd
+
+### Fixed
+- URL-correctie: `dirkwhoffmann/vAmigaWeb` → `vAmigaWeb/vAmigaWeb` in 7 docs/code-bestanden (foute aanname v0.0.2; werkelijke owner is org `vAmigaWeb`, niet user `dirkwhoffmann`)
+
+### Changed
+- `external/README.md` aangepast (URL + pinning op commit i.p.v. release-tag; vAmigaWeb heeft géén releases)
+- `Meta_AmigaHorse/docs/DEPENDENCIES.md` vAmigaWeb-licentie van "GPL-3.0 (TBC)" → "GPL-3.0 (geverifieerd 31-05)"; vAmiga 3-tier sub-licentie toegevoegd
+
+### Verified
+- vAmigaWeb LICENSE = **GPL-3.0** (header `GNU GENERAL PUBLIC LICENSE Version 3`)
+- vAmiga (in `Core/`) = 3-tier: GPL-3.0+ app / MPL-2.0 Core Emulator / MIT Moira-CPU — alle AGPL-3.0-compat
+- vAmigaWeb heeft **géén git-submodules** (vAmiga vendored in `Core/`-directory); géén transitive risk
+- Lokale clone: 15 MB inclusief `.git/`
+
+### Added (P-AMH-07 baseline)
+- `Meta_AmigaHorse/docs/UPSTREAM_AUDIT.md` aangemaakt met baseline-entry voor vAmigaWeb (subcomponent-tabel + risico's + roadmap)
+
+### Not yet (v0.0.2.x sub-steps 2-5)
+- Emscripten installeren (~/Documents/Gemini_Projects/emsdk)
+- WASM-build draaien (`emcc` op `external/vamigaweb/Core/`)
+- `vAmiga.mountDH`-API verifieren in vAmigaWeb-sources
+- Warm-snapshot-bake live testen met user-supplied assets
+- End-to-end test met `HELLO WORLD.bas`
+
 ## [0.0.2-CannonFodder] — 2026-05-31
 
 ### Added (Oranje — nieuwe Core-binding + nieuwe route + nieuwe IndexedDB-stores)

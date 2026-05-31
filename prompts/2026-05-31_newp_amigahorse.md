@@ -35,7 +35,7 @@ Gebruiker startte `newp "AmigaHorse"` met 4 targets (Web/x86/Android/SteamDeck),
 
 ## Open vragen v0.0.2 (eerste agenda)
 
-1. Eigen Emscripten-port (FS-UAE/WinUAE → WASM) vs [vAmigaWeb](https://github.com/dirkwhoffmann/vAmigaWeb) als basis
+1. Eigen Emscripten-port (FS-UAE/WinUAE → WASM) vs [vAmigaWeb](https://github.com/vAmigaWeb/vAmigaWeb) als basis
 2. UI-framework: vanilla JS vs React/Solid/Svelte
 3. AROS-bundling: static-include vs lazy-load
 4. Hosting-keuze met COOP+COEP-headers (Cloudflare Pages / Netlify / HC55-nginx)

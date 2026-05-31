@@ -35,7 +35,7 @@ Volledige diagram + data-flow: zie [Meta_AmigaHorse/ARCHITECTURE.md](https://git
 
 ## Core-basis (besloten v0.0.2)
 
-[vAmigaWeb](https://github.com/dirkwhoffmann/vAmigaWeb) als basis. GPL-3.0 → AGPL-3.0 upgrade is legaal. A500 + OCS + Kickstart 1.3 = exact de sweet-spot voor AmigaBASIC (Microsoft 1985-1989, werkt **niet** op KS 2.0+; bekende Commodore-incompatibility). Coherentie met AmigaHorse_Core (FS-UAE/WinUAE-stack) wordt heroverwogen in v0.0.3.
+[vAmigaWeb](https://github.com/vAmigaWeb/vAmigaWeb) als basis. GPL-3.0 → AGPL-3.0 upgrade is legaal. A500 + OCS + Kickstart 1.3 = exact de sweet-spot voor AmigaBASIC (Microsoft 1985-1989, werkt **niet** op KS 2.0+; bekende Commodore-incompatibility). Coherentie met AmigaHorse_Core (FS-UAE/WinUAE-stack) wordt heroverwogen in v0.0.3.
 
 ## Doelplatformen
 
