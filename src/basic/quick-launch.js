@@ -17,6 +17,7 @@ import { encodeStringToSequence, playSequence } from '../lib/amiga-keymap.js';
 import { CanvasRenderer } from '../lib/canvas-renderer.js';
 import { MouseInput } from '../lib/mouse-input.js';
 import { AudioSetup } from '../lib/audio-setup.js';
+import { GamepadInput } from '../lib/gamepad-input.js';
 
 const dropzone = document.getElementById('dropzone');
 const status = document.getElementById('status');
@@ -27,6 +28,7 @@ const smokeTestButton = document.getElementById('smoke-test');
 let renderer = null;
 let mouseInput = null;
 let audioSetup = null;
+let gamepadInput = null;
 
 function setStatus(msg, kind = 'info') {
   status.textContent = msg;
@@ -98,7 +100,7 @@ async function handleBasFile(file) {
     const loadResult = bindings.loadFile('basic.adf', adf, 1);
     console.log('[quick-launch] loadFile DF1: →', loadResult);
 
-    // Start render-loop + mouse-input
+    // Start render-loop + mouse-input + gamepad
     canvas.style.display = 'block';
     if (!renderer) {
       renderer = new CanvasRenderer(canvas, bindings, Module);
@@ -106,6 +108,10 @@ async function handleBasFile(file) {
     if (!mouseInput) {
       mouseInput = new MouseInput(canvas, bindings);
       mouseInput.attach();
+    }
+    if (!gamepadInput) {
+      gamepadInput = new GamepadInput(bindings);
+      gamepadInput.attach();
     }
     renderer.start();
     renderer.fitToContainer(800);

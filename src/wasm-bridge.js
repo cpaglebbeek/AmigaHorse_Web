@@ -118,6 +118,10 @@ function bindFunctions(Module) {
   const mouse = cwrap('wasm_mouse', 'void', ['number', 'number', 'number']);
   const mouseButton = cwrap('wasm_mouse_button', 'void', ['number', 'number', 'number']);
 
+  // Joystick (sub-step 8) — vAmiga verwacht string "<port><event>"
+  // events: PULL_UP/DOWN/LEFT/RIGHT, PRESS_FIRE, RELEASE_X/Y/XY/FIRE
+  const joystick = cwrap('wasm_joystick', 'void', ['string']);
+
   // Audio (sub-step 6 skelet; echte sink sub-step 7)
   const setSampleRate = cwrap('wasm_set_sample_rate', 'void', ['number']);
   const updateAudio = cwrap('wasm_update_audio', 'void', ['number']);
@@ -180,6 +184,8 @@ function bindFunctions(Module) {
     key, scheduleKey,
     // Input — mouse (sub-step 6)
     mouse, mouseButton,
+    // Input — joystick (sub-step 8)
+    joystick,
     // I/O
     loadFile,
     // State

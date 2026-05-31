@@ -2,6 +2,54 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Codenamen uit pool `Meta_AmigaHorse/CLAUDE.md`.
 
+## [0.0.8-DefenderOfTheCrown] — 2026-06-01 (sub-step 8: multi-block ADF + Full mode + Gamepad)
+
+> Codenaam **Defender of the Crown** (Cinemaware 1986, eerste echt "cinematic" Amiga-experience — fitting Full mode arrival).
+> Kleur **Groen +0.0.1**. Oranje +0.1.0 spaar ik tot user e2e-bewijs.
+
+### Added
+- **`src/lib/build-blank-adf.js` multi-block-support**
+  - File-size limiet 488 bytes → **35 136 bytes (~34 KB)** = 72 OFS data-blocks
+  - OFS data-block-chain: per block seq# + next-pointer; bitmap markeert alle gebruikte blocks; file-header data-block-pointer-array in reverse order
+  - Constants `MAX_DATA_BLOCK_PTRS=72` + `MAX_FILE_SIZE=35136` ge-export
+  - **Node smoke-test:** 2000-byte content → 5 chained blocks met juiste seq/next sequencing, totaal-ADF 901 120 bytes, boot-magic `DOS\0` correct
+- **`src/lib/gamepad-input.js`** (~110r) — `GamepadInput` class
+  - HTML5 Gamepad API polling op `requestAnimationFrame`
+  - D-pad / left-stick → `PULL_UP/DOWN/LEFT/RIGHT` events
+  - Button 0 (south) = `PRESS_FIRE`
+  - Vorige-state-tracking voor `RELEASE_X/Y/FIRE` bij overgang naar neutraal
+  - Deadzone 0.3 voor analoge sticks
+  - Auto-release bij detach (sticky-prevention)
+- **`src/wasm-bridge.js`** nieuwe `joystick` cwrap-binding — string `"<port><event>"`
+- **`src/full/library.js`** uitgebreid van skeleton → werkende library + player
+  - `listIndexedDBStore('amigahorse-disks')` toont alle entries
+  - "Play" button per disk → loadFile + powerOn + renderer.start + alle inputs
+  - Kickstart-upload (`#upload-kick-full`) zodat Full mode standalone werkt zonder /basic/setup
+  - Audio-resume-on-gesture
+  - `escapeHtml/escapeAttr` voor user-input safety
+- **`src/full/index.html`** uitgebreid met kickstart-upload + status-element + canvas (320×256, hidden tot Play)
+- **`src/basic/quick-launch.js`** GamepadInput attached bij `.bas`-drop
+
+### Verified
+- `node --check` op 11 JS-files OK
+- `npm run build` 31ms minified
+- Dev-server :5173 alle routes 200
+- Multi-block ADF Node-smoke-test: 5 chained blocks correct (seq 1-5, next-pointers 884→885→886→887→0)
+- Bundle-size: quick-launch 3.7 KB + full/library 3.5 KB (shared chunks)
+
+### Decided
+- ADF-limiet 34 KB voldoende voor v0.0.8 (typische BASIC-programma's <10 KB). Extension-block voor >34 KB = v0.x
+- Gamepad polling via rAF (geen polling-events overshoot)
+- Full mode hergebruikt Quick BASIC's renderer/mouse/audio/gamepad classes — single source
+
+### Not yet (sub-step 9 of v0.1.0)
+- Mouse-coords WB-icon-tunen (vereist user screenshot van WB-boot)
+- Save-state-synchronisatie Quick BASIC ↔ Full mode
+- Compat-set Turrican/Lemmings/SOTB benchmark
+- AudioWorklet-migratie (alleen als latency-klacht)
+- Multi-disk projecten (DF0+DF1+DF2 swap)
+- iOS PWA-modus
+
 ## [0.0.7-ChaosEngine] — 2026-06-01 (sub-step 7: audio-sink + pixel-format-auto-detect)
 
 > Codenaam **Chaos Engine** (Bitmap Brothers 1993, atmosferische audio + complex render-engine — fitting audio-pipeline + pixel-handling).

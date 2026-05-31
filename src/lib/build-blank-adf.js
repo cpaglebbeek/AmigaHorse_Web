@@ -6,11 +6,12 @@
 // Werking: kickstart 1.3 / WB 1.3 herkent OFS-volumes met label "BAS",
 // AmigaBASIC kan dan `LOAD "DF1:launch.bas"` doen.
 //
-// **Beperkingen v0.0.4:**
-// - Single-block file-size limiet: 488 bytes (1 OFS data-block). Voldoende voor
-//   HELLO WORLD-tests; multi-block in v0.0.5.
+// **Beperkingen v0.0.8 (sub-step 8 multi-block):**
+// - File-size limiet: ~34 KB (72 data-blocks max in 1 file-header zonder
+//   extension-block). Voldoende voor realistische BASIC-programma's.
 // - OFS (niet FFS) — KS 1.3 floppy default; FFS-support v0.x.
 // - DD-density (Double Density, 880 KB). HD-floppies niet in scope.
+// - Géén directory-structuur — flat root met 1 file.
 //
 // Refs: Laurent Clévy "Amiga Disk File", Aminet ADFLib docs.
 
@@ -35,6 +36,8 @@ const FIRST_DATA_BLOCK = 883;
 
 const OFS_DATA_PER_BLOCK = 488;               // 512 - 24 OFS-data-header
 const HASH_TABLE_SIZE = 72;                   // root block hash-tabel grootte
+const MAX_DATA_BLOCK_PTRS = 72;               // file-header data-block-array slots
+const MAX_FILE_SIZE = OFS_DATA_PER_BLOCK * MAX_DATA_BLOCK_PTRS;  // 35136 bytes ≈ 34 KB
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -128,11 +131,11 @@ export function buildAdfWithBasFile(basContent, fileName = 'launch.bas', volumeL
   if (!(basContent instanceof Uint8Array)) {
     throw new TypeError('basContent moet Uint8Array zijn');
   }
-  if (basContent.length > OFS_DATA_PER_BLOCK) {
+  if (basContent.length > MAX_FILE_SIZE) {
     throw new RangeError(
-      `BASIC-bestand max ${OFS_DATA_PER_BLOCK} bytes in v0.0.4 ` +
-      `(single-block-limiet). Kreeg: ${basContent.length}. ` +
-      `Multi-block-support komt v0.0.5.`,
+      `BASIC-bestand max ${MAX_FILE_SIZE} bytes in v0.0.8 ` +
+      `(${MAX_DATA_BLOCK_PTRS} OFS data-blocks × ${OFS_DATA_PER_BLOCK} bytes). ` +
+      `Kreeg: ${basContent.length}. Extension-block-support v0.x.`,
     );
   }
   if (fileName.length > 30) {
@@ -144,6 +147,10 @@ export function buildAdfWithBasFile(basContent, fileName = 'launch.bas', volumeL
 
   const adf = new Uint8Array(TOTAL_BYTES);
   const date = nowAsAmigaDate();
+
+  // Bereken aantal data-blocks benodigd
+  const numDataBlocks = Math.max(1, Math.ceil(basContent.length / OFS_DATA_PER_BLOCK));
+  const lastDataBlock = FIRST_DATA_BLOCK + numDataBlocks - 1;
 
   // -- Boot block (sectoren 0-1) --
   // Minimaal "DOS\0" magic + root-block-pointer. Niet bootable; OS leest alleen
@@ -207,7 +214,7 @@ export function buildAdfWithBasFile(basContent, fileName = 'launch.bas', volumeL
     markUsed(ROOT_BLOCK);
     markUsed(BITMAP_BLOCK);
     markUsed(FILE_HEADER_BLOCK);
-    markUsed(FIRST_DATA_BLOCK);
+    for (let i = 0; i < numDataBlocks; i++) markUsed(FIRST_DATA_BLOCK + i);
     computeBitmapChecksum(adf, off);
   }
 
@@ -216,12 +223,16 @@ export function buildAdfWithBasFile(basContent, fileName = 'launch.bas', volumeL
     const off = FILE_HEADER_BLOCK * SECTOR_SIZE;
     writeU32BE(adf, off + 0x000, T_HEADER);
     writeU32BE(adf, off + 0x004, FILE_HEADER_BLOCK);    // header_key = own
-    writeU32BE(adf, off + 0x008, 1);                     // num data blocks
+    writeU32BE(adf, off + 0x008, numDataBlocks);         // num data blocks
     // 0x00C: data_size in header = 0
     writeU32BE(adf, off + 0x010, FIRST_DATA_BLOCK);     // first_data_block
     // 0x014: checksum (later)
-    // 0x018-0x12F: data-block-pointer array (72 × 4 = 288 bytes, reverse order, [71] = first)
-    writeU32BE(adf, off + 0x018 + 71 * 4, FIRST_DATA_BLOCK);
+    // 0x018-0x12F: data-block-pointer array (72 × 4 = 288 bytes, reverse order:
+    // [71] = first data block, [70] = second, ..., [71 - n + 1] = n-th)
+    for (let i = 0; i < numDataBlocks; i++) {
+      const slot = 71 - i;
+      writeU32BE(adf, off + 0x018 + slot * 4, FIRST_DATA_BLOCK + i);
+    }
     // 0x130: unused
     // 0x134-0x13F: UID/GID/protect = 0
     writeU32BE(adf, off + 0x140, basContent.length);    // byte-size
@@ -239,17 +250,23 @@ export function buildAdfWithBasFile(basContent, fileName = 'launch.bas', volumeL
     computeBlockChecksum(adf, off, off + 0x014);
   }
 
-  // -- Data block (sector 883, OFS-format) --
-  {
-    const off = FIRST_DATA_BLOCK * SECTOR_SIZE;
+  // -- Data blocks (sectoren 883..883+N-1, OFS-format, chained) --
+  for (let i = 0; i < numDataBlocks; i++) {
+    const blockNum = FIRST_DATA_BLOCK + i;
+    const off = blockNum * SECTOR_SIZE;
+    const isLast = (i === numDataBlocks - 1);
+    const sliceStart = i * OFS_DATA_PER_BLOCK;
+    const sliceEnd = Math.min(sliceStart + OFS_DATA_PER_BLOCK, basContent.length);
+    const sliceLen = sliceEnd - sliceStart;
+
     writeU32BE(adf, off + 0x000, T_DATA);
-    writeU32BE(adf, off + 0x004, FILE_HEADER_BLOCK);    // header_key
-    writeU32BE(adf, off + 0x008, 1);                     // seq number
-    writeU32BE(adf, off + 0x00C, basContent.length);    // data size
-    writeU32BE(adf, off + 0x010, 0);                     // next data block = 0 (last)
+    writeU32BE(adf, off + 0x004, FILE_HEADER_BLOCK);              // header_key
+    writeU32BE(adf, off + 0x008, i + 1);                           // seq number
+    writeU32BE(adf, off + 0x00C, sliceLen);                        // data size (deze block)
+    writeU32BE(adf, off + 0x010, isLast ? 0 : blockNum + 1);       // next data block
     // 0x014: checksum (later)
-    // 0x018-0x1FF: 488 bytes data-payload
-    adf.set(basContent, off + 24);
+    // 0x018-0x1FF: tot 488 bytes data-payload
+    adf.set(basContent.subarray(sliceStart, sliceEnd), off + 24);
     computeBlockChecksum(adf, off, off + 0x014);
   }
 
@@ -262,6 +279,8 @@ export const _internal = {
   SECTORS,
   TOTAL_BYTES,
   OFS_DATA_PER_BLOCK,
+  MAX_DATA_BLOCK_PTRS,
+  MAX_FILE_SIZE,
   BOOT_BLOCK,
   ROOT_BLOCK,
   BITMAP_BLOCK,
