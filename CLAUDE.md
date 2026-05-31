@@ -8,7 +8,7 @@ WebAssembly-build van AmigaHorse_Core + browser-UI + IndexedDB-storage. Geen bac
 
 ## Codenaam
 
-v0.0.1 = **Turrican**. Volgende codenamen via pool in `Meta_AmigaHorse/CLAUDE.md` — niet hier dupliceren.
+v0.0.1 = **Turrican**. v0.0.2 = **Cannon Fodder**. Volgende codenamen via pool in `Meta_AmigaHorse/CLAUDE.md` — niet hier dupliceren.
 
 ## Feature & Bugfix Protocol (Color-Coded)
 
@@ -32,25 +32,52 @@ Elke functionele/technische wijziging → versie bumpen in `VERSION` (semver + c
 
 Zie `Meta_Master/CLAUDE.md`. Hier specifiek: wijziging in Core-WASM-exports raakt JS-binding-laag; vóór elke Core-submodule-bump impact op `src/wasm-bridge.js` benoemen.
 
-## Build (vanaf v0.0.2)
+## Build (vanaf v0.0.2.x — vereist vAmigaWeb submodule eerst)
 
 ```bash
-# Voorzien (nog niet geïmplementeerd):
-# emcc -O3 -sUSE_PTHREADS -sINITIAL_MEMORY=256MB ...
-# Output: dist/amigahorse.wasm + dist/amigahorse.js
+# v0.0.2: scaffold, geen WASM-build yet
+# v0.0.2.x: na 'git submodule add ... external/vamigaweb':
+npm install
+npm run build:wasm   # emcc-pipeline op vAmiga-fork (~5-10 min)
+npm run build:web    # esbuild bundelt src/ → dist/
+npm run dev          # esbuild --serve op localhost:8000 (met COOP+COEP)
 ```
 
 ## Testen
 
-- Lokaal: `npx serve dist/` (vereist HTTPS voor AudioWorklet/SharedArrayBuffer headers in v0.x)
-- Compat-set v0.0.2: Turrican (Factor 5), Lemmings (DMA Design), Shadow of the Beast (Psygnosis) — alle drie op AROS-Kickstart waar mogelijk; documenteren welke werken vs welke 1.3-Kickstart vereisen.
+- Lokaal: `npm run dev` start dev-server met COOP+COEP-headers (vereist voor SharedArrayBuffer)
+- **Quick BASIC** v0.0.2.x: eigen `.bas` testen (HELLO WORLD, sprite-demo, eenvoudige game)
+- **Full mode** compat-set v0.0.3: Turrican (Factor 5), Lemmings (DMA Design), Shadow of the Beast (Psygnosis) — alle drie op AROS-Kickstart waar mogelijk; documenteer welke 1.3-Kickstart vereisen
 
-## ROM-handling
+## Asset-handling (P-AMH-05 strikt)
 
-User-Kickstart upload via File-API → IndexedDB `amigahorse-kickstart` store. Eerste-boot-flow:
-1. Check `amigahorse-kickstart` → leeg → AROS-mode actief (banner tonen)
-2. Optie "Upload eigen Kickstart" → File-API → SHA-256 → opslaan met label (`kick13.rom`, `kick205.rom`, `kick31.rom`)
-3. Per game/disk kunnen kiezen welke Kickstart te gebruiken
+**Drie user-supplied assets** (eenmalig via `/basic/setup`-wizard):
+
+| Asset | Bron | IndexedDB-locatie | Label |
+|---|---|---|---|
+| Kickstart 1.3 ROM (~256 KB) | Cloanto Amiga Forever / eigen rip | `amigahorse-kickstart` | `kick13` |
+| Workbench 1.3 ADF (880 KB) | idem | `amigahorse-disks` | `wb13-master` |
+| AmigaBASIC binary (~100 KB, in WB 1.3 ADF) | idem | `amigahorse-kickstart` | `amigabasic-bin` |
+| AROS-fallback (v0.0.3+) | Bundled in WASM | n.v.t. | `aros-default` |
+
+Eerste-bezoek-flow:
+1. Check `amigahorse-states` voor `basic-env-snapshot`
+2. Ontbreekt → redirect `/basic/setup` (3 file-pickers + warm-snapshot-bake)
+3. Aanwezig → direct naar dropzone op `/`
+
+Géén download-knoppen naar Cloanto. Géén binaries in git.
+
+## BASIC-mode (zie `docs/BASIC_MODE.md`)
+
+Centraal principe: P-AMH-09 (Meta_AmigaHorse/docs/PRINCIPLES.md). Quick-launch via warm-snapshot + hostfs-injection. Auto-RUN default, toggle voor LIST/edit.
+
+## Routes
+
+| Route | Bestand | Rol |
+|---|---|---|
+| `/` | `src/basic/index.html` | Quick BASIC dropzone (default landing als setup voltooid) |
+| `/basic/setup` | `src/basic/setup.html` | Asset-Setup-wizard |
+| `/full` | `src/full/index.html` | Full configurable mode |
 
 ## Sessie-MD's
 

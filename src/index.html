@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AmigaHorse — kies modus</title>
+  <link rel="stylesheet" href="./styles.css">
+  <meta name="description" content="AmigaHorse — open-source Amiga-emulator in de browser. Quick BASIC mode of Full configurable.">
+</head>
+<body>
+  <main class="route-picker">
+    <h1>AmigaHorse</h1>
+    <p class="tagline">Amiga in je browser. Kies een modus.</p>
+
+    <nav class="route-grid">
+      <a href="/basic/" class="route-card route-card--basic">
+        <h2>Quick BASIC</h2>
+        <p>Drop een <code>.bas</code>-bestand en zie het meteen draaien op je Amiga.</p>
+        <small>Vereist eenmalige Asset-Setup (KS 1.3 + WB 1.3 + AmigaBASIC).</small>
+      </a>
+
+      <a href="/full/" class="route-card route-card--full">
+        <h2>Full configurable</h2>
+        <p>Library, settings, save-states, compat-set. De volledige Amiga-ervaring.</p>
+        <small>Werkt met AROS-fallback of eigen Kickstart.</small>
+      </a>
+    </nav>
+
+    <footer class="picker-footer">
+      <span>v<span id="version">0.0.2-CannonFodder</span></span>
+      <span>·</span>
+      <a href="https://github.com/cpaglebbeek/Meta_AmigaHorse">GitHub</a>
+      <span>·</span>
+      <span>AGPL-3.0</span>
+    </footer>
+  </main>
+
+  <script type="module">
+    // Detect of warm-snapshot al bestaat → default redirect naar /basic/
+    // TODO v0.0.2.x: check IndexedDB amigahorse-states voor 'basic-env-snapshot'
+    // Voorlopig: route-picker tonen
+  </script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Full mode — AmigaHorse</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <main class="full-mode" style="max-width:1200px; padding:2rem;">
+    <header>
+      <h1>AmigaHorse — Full mode</h1>
+      <p>Library, settings, save-states. v0.0.2 skelet — compat-set komt v0.0.3.</p>
+    </header>
+
+    <section id="library">
+      <h2>Library</h2>
+      <div id="dropzone-full" class="dropzone" tabindex="0">
+        <span class="hero-text">Drop ADF/HDF om toe te voegen</span>
+        <small>v0.0.3 compat-set: Turrican, Lemmings, Shadow of the Beast</small>
+      </div>
+      <ul id="library-list" style="margin-top:1.5rem; font-family:var(--font-mono);"></ul>
+    </section>
+
+    <canvas id="emulator" class="emulator-canvas" width="640" height="400" style="display:none; margin-top:2rem;"></canvas>
+
+    <nav style="margin-top:2rem;">
+      <a href="/">← Mode-picker</a>
+      <span> · </span>
+      <a href="/basic/">Quick BASIC →</a>
+    </nav>
+  </main>
+
+  <script type="module" src="./library.js"></script>
+</body>
+</html>

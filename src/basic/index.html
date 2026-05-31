@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quick BASIC — AmigaHorse</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <main class="quick-basic">
+    <header style="text-align:center; padding:1rem;">
+      <h1>Quick BASIC</h1>
+      <p>Drop een <code>.bas</code>-bestand om het direct te draaien.</p>
+    </header>
+
+    <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Dropzone voor AmigaBASIC bestanden">
+      <span class="hero-text">Drop je .bas hier</span>
+      <small>of klik om te selecteren</small>
+    </div>
+
+    <div id="status" style="text-align:center; margin-top:1.5rem; min-height:2rem;"></div>
+
+    <canvas id="emulator" class="emulator-canvas" width="640" height="400" style="display:none; margin-top:2rem;"></canvas>
+
+    <nav style="text-align:center; margin-top:2rem;">
+      <label>
+        <input type="checkbox" id="auto-run" checked>
+        Auto-RUN na LOAD (uit = stop in BASIC-prompt)
+      </label>
+      <br><br>
+      <a href="/full/">Of: open Full configurable mode →</a>
+      <br>
+      <a href="/basic/setup.html">Asset-Setup opnieuw doorlopen</a>
+    </nav>
+  </main>
+
+  <script type="module" src="./quick-launch.js"></script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "name": "amigahorse-web",
+  "version": "0.0.2",
+  "description": "AmigaHorse_Web — open-source Amiga-emulator in de browser. Twee routes: Quick BASIC mode + Full configurable.",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cpaglebbeek/AmigaHorse_Web.git"
+  },
+  "homepage": "https://github.com/cpaglebbeek/Meta_AmigaHorse",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "esbuild --config=esbuild.config.mjs --serve=8000 --servedir=dist --watch",
+    "build": "esbuild --config=esbuild.config.mjs --minify",
+    "build:wasm": "echo 'TODO v0.0.2.x: emcc-pipeline na vAmigaWeb submodule add. Zie external/README.md.' && exit 1",
+    "clean": "rm -rf dist build node_modules/.cache",
+    "preview": "npx --yes serve dist --cors --listen 8000"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.0"
+  },
+  "comment": "Vanilla JS by design (geen React/Vue/Svelte v0.0.2). Native ES-modules. esbuild bundelt src/ → dist/. Lokaal hosten met COOP+COEP-headers vereist voor SharedArrayBuffer-PTHREAD. Zie docs/BASIC_MODE.md."
+}

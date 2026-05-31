@@ -9,9 +9,20 @@ dist/
 build/
 *.wasm
 *.wasm.map
-# user-supplied Kickstart ROMs (P-AMH-05: NEVER in git)
+# user-supplied Kickstart ROMs + Workbench ADFs + AmigaBASIC binary (P-AMH-05: NEVER in git)
 *.rom
 *.ROM
 kick*.rom
+*.adf
+*.ADF
+*.hdf
+*.HDF
+AmigaBASIC
+amigabasic
+# user-supplied .bas (P-AMH-09: dev-only, niet committen tenzij eigen voorbeeld in docs/examples/)
+local-test/
+*.local.bas
 # upstream submodule build artefacts
 external/*/build/
+external/*/dist/
+.cache/

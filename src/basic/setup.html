@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BASIC Asset-Setup — AmigaHorse</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <main class="wizard">
+    <h1>BASIC Asset-Setup</h1>
+    <p>
+      Eenmalige setup. Lever drie bestanden die je legaal in bezit hebt
+      (Cloanto Amiga Forever of eigen rip):
+    </p>
+
+    <ol class="wizard-steps" style="list-style:none; padding:0;">
+      <li class="wizard-step" id="step-1">
+        <h3>Stap 1 — Kickstart 1.3 ROM</h3>
+        <p>Bestand <code>kick13.rom</code>, verwacht ±256 KB.</p>
+        <input type="file" id="upload-kick" accept=".rom,.bin">
+        <p class="step-status"></p>
+      </li>
+
+      <li class="wizard-step" id="step-2">
+        <h3>Stap 2 — Workbench 1.3 ADF</h3>
+        <p>Bestand <code>wb13.adf</code>, verwacht exact 880 KB.</p>
+        <input type="file" id="upload-wb" accept=".adf">
+        <p class="step-status"></p>
+      </li>
+
+      <li class="wizard-step" id="step-3">
+        <h3>Stap 3 — AmigaBASIC binary</h3>
+        <p>Het <code>AmigaBASIC</code>-bestand van de Workbench 1.3 disk (~100 KB).</p>
+        <input type="file" id="upload-basic">
+        <p class="step-status"></p>
+      </li>
+
+      <li class="wizard-step" id="step-4">
+        <h3>Stap 4 — Warm-snapshot bake</h3>
+        <p>Eenmalige boot van de Amiga + start AmigaBASIC + save-state-freeze (~10 sec).</p>
+        <button id="bake-button" disabled>Start bake</button>
+        <p class="step-status"></p>
+      </li>
+    </ol>
+
+    <div class="compat-banner">
+      <strong>Let op:</strong> AmigaBASIC werkt alléén op Kickstart 1.x (Commodore-incompatibility op KS 2.0+).
+      Géén binaries worden naar GitHub gepushed — alles blijft in je browser (IndexedDB).
+    </div>
+
+    <p style="text-align:center;">
+      <a href="/">← terug</a>
+    </p>
+  </main>
+
+  <script type="module" src="./setup.js"></script>
+</body>
+</html>

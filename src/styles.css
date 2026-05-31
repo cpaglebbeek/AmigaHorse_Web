@@ -1,0 +1,195 @@
+/* AmigaHorse_Web — basale styles v0.0.2 (gebruikt tokens uit DESIGN_TOKENS.md) */
+
+:root {
+  --wb-grey-light: #aaaaaa;
+  --wb-grey-mid: #888888;
+  --wb-grey-dark: #555555;
+  --wb-blue: #0055aa;
+  --wb-blue-light: #5588dd;
+  --wb-white: #ffffff;
+  --wb-black: #000000;
+  --wb-orange: #ff8800;
+  --wb-red: #dd0000;
+  --wb-green: #00aa44;
+
+  --font-mono: 'Topaz', 'IBM Plex Mono', ui-monospace, monospace;
+  --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  --space-1: 0.5rem;
+  --space-2: 1rem;
+  --space-3: 1.5rem;
+  --space-4: 2rem;
+  --space-6: 3rem;
+  --space-8: 4rem;
+
+  --radius-md: 4px;
+  --radius-lg: 8px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--font-ui);
+  background: var(--wb-grey-light);
+  color: var(--wb-black);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Route picker (index.html) */
+
+.route-picker {
+  max-width: 960px;
+  padding: var(--space-4);
+  text-align: center;
+}
+
+.route-picker h1 {
+  font-size: 3rem;
+  margin: 0 0 var(--space-1);
+}
+
+.tagline {
+  color: var(--wb-grey-dark);
+  margin: 0 0 var(--space-6);
+}
+
+.route-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+}
+
+@media (min-width: 768px) {
+  .route-grid { grid-template-columns: 1fr 1fr; }
+}
+
+.route-card {
+  display: block;
+  padding: var(--space-4);
+  background: var(--wb-white);
+  border: 2px solid var(--wb-black);
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  color: var(--wb-black);
+  text-align: left;
+  box-shadow: 0 1px 0 var(--wb-grey-dark);
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.route-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 3px 0 var(--wb-grey-dark);
+}
+
+.route-card:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--wb-blue);
+}
+
+.route-card h2 {
+  margin: 0 0 var(--space-1);
+  color: var(--wb-blue);
+}
+
+.route-card p {
+  margin: 0 0 var(--space-2);
+}
+
+.route-card small {
+  color: var(--wb-grey-dark);
+  font-size: 0.85rem;
+}
+
+.picker-footer {
+  margin-top: var(--space-6);
+  color: var(--wb-grey-dark);
+  font-size: 0.85rem;
+}
+
+.picker-footer a { color: var(--wb-grey-dark); }
+
+/* DropZone — gebruikt op /basic en /full */
+
+.dropzone {
+  border: 3px dashed var(--wb-grey-mid);
+  border-radius: var(--radius-lg);
+  padding: var(--space-8);
+  text-align: center;
+  background: var(--wb-white);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  transition: border-color 0.1s, background 0.1s;
+}
+
+.dropzone.is-active {
+  border-color: var(--wb-blue);
+  background: #eef5ff;
+  box-shadow: inset 0 0 0 3px var(--wb-blue);
+}
+
+.dropzone.is-error {
+  border-color: var(--wb-red);
+  color: var(--wb-red);
+}
+
+.dropzone .hero-text {
+  font-size: 2rem;
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+/* Setup wizard steps */
+
+.wizard {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--space-4);
+}
+
+.wizard-step {
+  background: var(--wb-white);
+  border: 2px solid var(--wb-black);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.wizard-step.is-done {
+  background: #e0f5e8;
+  border-color: var(--wb-green);
+}
+
+.wizard-step.is-error {
+  background: #fde0e0;
+  border-color: var(--wb-red);
+}
+
+.wizard-step h3 {
+  margin-top: 0;
+  color: var(--wb-blue);
+}
+
+/* CompatBanner */
+
+.compat-banner {
+  background: var(--wb-orange);
+  color: var(--wb-black);
+  padding: var(--space-2);
+  margin: var(--space-2) 0;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+}
+
+/* EmulatorCanvas */
+
+.emulator-canvas {
+  display: block;
+  margin: 0 auto;
+  image-rendering: pixelated;
+  background: var(--wb-black);
+  max-width: 100%;
+}

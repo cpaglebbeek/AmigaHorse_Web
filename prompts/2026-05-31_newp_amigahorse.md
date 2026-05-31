@@ -1,9 +1,11 @@
 ---
 date: 2026-05-31
 repo: AmigaHorse_Web
-status: open
-resume: "verder met AmigaHorse_Web v0.0.2 — Emscripten-port-keuze (eigen WinUAE/FS-UAE WASM vs vAmigaWeb-integratie) + compat-set Turrican/Lemmings/ShadowOfTheBeast"
+status: done
+resume: ""
 ---
+
+> Afgesloten 2026-05-31 bij start van v0.0.2-CannonFodder (zie `2026-05-31_v002_basic_mode.md`). Beslissingen overgenomen: vAmigaWeb-basis, AGPL-3.0 via or-later, IndexedDB-stores, COOP+COEP-hosting.
 
 # Sessie 2026-05-31 — newp AmigaHorse_Web (prio 1)
 
