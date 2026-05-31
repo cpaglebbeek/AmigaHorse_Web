@@ -40,6 +40,30 @@ Alle drie AGPL-3.0-compat.
 
 vAmigaWeb wraps vAmiga met de Emscripten/WebAssembly-glue + AudioWorklet + WebGL framebuffer-blit. Die glue is voor ons hergebruikbaar; we hoeven niet zelf vAmiga te emscripten-porteren.
 
+## Build-pipeline (v0.0.2.x, sub-step 3+)
+
+Emscripten SDK is geïnstalleerd op `~/Documents/Gemini_Projects/emsdk` (toolchain buiten repo's; zie sub-step 2 v0.0.2.2). Activeer per build-sessie:
+
+```bash
+cd /Users/christian/Documents/Gemini_Projects/AmigaHorse_Web
+source tools/emscripten-env.sh    # zet emsdk-PATH alleen in huidige shell
+emcc --version                     # bevestigt 5.0.7 actief
+```
+
+Daarna (sub-step 3, nog te doen) — vAmigaWeb WASM-build:
+
+```bash
+cd external/vamigaweb
+# TODO sub-step 3: cmake-pipeline op Core/
+# Verwacht commando-vorm:
+#   cmake -B build -DCMAKE_BUILD_TYPE=Release \
+#     -DCMAKE_TOOLCHAIN_FILE=${EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake
+#   cmake --build build
+# Output: build/amigahorse-vamiga.wasm + build/amigahorse-vamiga.js
+```
+
+Helper-script `tools/emscripten-env.sh` pin: **emsdk 5.0.7** (commit `263db4cffa6f9fc2ec514a70abac81362ea41849`).
+
 We forken **vAmigaWeb** (niet upstream) zodra we eigen patches nodig hebben voor:
 - BASIC-mode hostfs-injection (`mountDH` API te verifieren)
 - Asset-Setup-wizard integratie

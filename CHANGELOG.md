@@ -2,6 +2,25 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Codenamen uit pool `Meta_AmigaHorse/CLAUDE.md`.
 
+## [0.0.2.2] — 2026-05-31 (v0.0.2.x sub-step 2: Emscripten install)
+
+### Added
+- **Emscripten SDK 5.0.7** geïnstalleerd op `~/Documents/Gemini_Projects/emsdk` (1.8 GB, buiten alle git-repos)
+  - Bundled node 22.16.0 + python 3.13.3 + wasm-binaries commit `6cd98e86d`
+  - `emcc --version` geverifieerd werkend
+- `tools/emscripten-env.sh` — sourceable helper-wrapper voor on-demand emsdk-PATH in build-shell (géén `.zshrc`-aanpassing; emsdk-env-vars alleen in huidige shell sessie)
+  - Versie-pin gedocumenteerd in script-header (5.0.7 + commit-hash + bundled tool-versies)
+  - Update-protocol in commentaar (bij emsdk-bump: pin updaten + vAmigaWeb-rebuild)
+
+### Decided
+- Pin op **emsdk 5.0.7** voor v0.0.2.2 — bij elke bump bewust cross-emcc-versie-regressies checken (vAmigaWeb-build draait dan opnieuw)
+- Géén shell-rc-modificatie (P-AGT: scope-bewuste sessie-isolatie); source on-demand
+
+### Not yet (v0.0.2.x sub-steps 3-5)
+- WASM-build van `external/vamigaweb/Core/` via `source tools/emscripten-env.sh && cd external/vamigaweb && cmake -B build && cmake --build build` (sub-step 3)
+- `vAmiga.mountDH`-API verifieren in vAmigaWeb-sources (sub-step 4)
+- Warm-snapshot-bake live test + end-to-end `HELLO WORLD.bas` (sub-step 5)
+
 ## [0.0.2.1] — 2026-05-31 (v0.0.2.x sub-step 1: submodule add)
 
 ### Added
