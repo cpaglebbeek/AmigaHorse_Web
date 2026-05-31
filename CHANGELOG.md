@@ -2,6 +2,53 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Codenamen uit pool `Meta_AmigaHorse/CLAUDE.md`.
 
+## [0.0.5-RType] — 2026-06-01 (v0.0.2.x sub-step 5: amiga-keymap + bake-flow + full BASIC-flow, dev-server bewezen)
+
+> Codenaam **R-Type** (Irem 1989, side-scrolling shooter port — fitting "key-TYPE" + iconic Amiga title).
+> Kleur **Groen +0.0.1** (JS-wiring + dev-server-proof, géén live AmigaBASIC-test door mij — vereist user-supplied binaries).
+> Oranje +0.1.0 spaar ik voor wanneer warm-snapshot daadwerkelijk wordt opgeslagen + restored door jou.
+
+### Added
+- **`src/lib/amiga-keymap.js`** — ASCII → Amiga rawkey-code mapping
+  - `RAWKEY`-constants voor alle US-layout keys (A-Z, 0-9, modifiers, function-keys)
+  - `encodeStringToSequence(str, opts)` → Array<{ code, pressed, delayMs }> met automatisch SHIFT-state-management
+  - `playSequence(bindings, seq)` → await-loop met setTimeout-delays voor typing
+  - Default typing-rate 50ms/char (volstaat voor BASIC-prompt zonder dropped chars)
+- **`src/basic/setup.js` bake-flow** geïmplementeerd
+  - Stap 1-6: init → loadFile kick → powerOn → loadFile WB df0 → run → wait boot → type "AmigaBASIC\r" → wait → saveStateToBuffer → IndexedDB
+  - TODO-markers voor sub-step 6+ tuning (timing, mouse-emulation, CLI-launch-alternative)
+- **`src/basic/quick-launch.js` volledige flow** geïmplementeerd
+  - Drop .bas → buildAdfWithBasFile → restoreStateFromBuffer (warm-snapshot) → loadFile DF1: → playSequence("LOAD ...") → auto-RUN ? "RUN" : stop → bindings.run()
+- **`docs/BASIC_MODE.md`** uitgebreid met "Hoe te testen"-sectie
+  - 5 stappen (build → smoke-test → asset-setup → bake → BASIC-test)
+  - Verwachte failure-punten v0.0.5 + tuning-hints (CLI-launch, save-timing, ROM-drive-number)
+  - Bekende beperkingen (canvas leeg in v0.0.5, geen audio yet)
+- **Dev-server poort verandererd 8000 → 5173** (Vite-conventie)
+  - Reden: Christian heeft SSH-tunnel naar HC55 op localhost:8000
+  - Configureerbaar via `PORT=5174 npm run dev`
+
+### Verified
+- `npm install` clean (esbuild 0.20.2 geïnstalleerd)
+- `node esbuild.config.mjs --dev` start op :5173 binnen 5 sec
+- 8 routes serven 200 incl. `/vendor/vamigaweb/vAmiga.wasm` (8.77 MB, `Content-Type: application/wasm`)
+- esbuild splitting werkt (chunks correct geresolved via import-graph)
+- `node --check` op alle 7 JS-files OK
+- `npm run build` produceert minified dist/
+
+### Decided
+- Typing-rate 50ms/char default in `playSequence` — wijzig via `opts.charDelayMs`
+- Bake-flow gebruikt CLI-launch via type `AmigaBASIC\r` (geen mouse-emulation v0.0.5)
+- BASIC-quick-launch toont canvas-element maar framebuffer-rendering pas v0.0.6
+
+### Not yet (sub-step 6+)
+- Canvas-framebuffer-render-loop (vAmiga's `wasm_pixel_buffer` + `wasm_draw_one_frame` koppelen aan `<canvas>` via WebGL of Canvas2D)
+- Audio via AudioWorklet + `wasm_get_sound_buffer_address`
+- Mouse-emulation (`wasm_mouse` + `wasm_mouse_button`) voor WB-icon-click-launch (alternatief voor CLI-typing)
+- Multi-block OFS-files (>488 bytes)
+- Compat-set Full mode: Turrican / Lemmings / Shadow of the Beast
+- COOP+COEP-headers in dev-server (alleen als worker-mode ooit)
+- AMOS / HiSoft / Blitz BASIC
+
 ## [0.0.4-Speedball2] — 2026-05-31 (v0.0.2.x sub-step 4: cwrap-bindings + ADF-builder + dev-pipeline)
 
 > Concrete JS-wiring naar vAmiga-WASM + pure-JS OFS-ADF-builder voor BASIC-injection + esbuild dev-server. Géén live-test yet (sub-step 5).

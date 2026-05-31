@@ -1,20 +1,21 @@
-// AmigaHorse_Web — Quick BASIC quick-launch flow (v0.0.4-Speedball2, sub-step 4)
+// AmigaHorse_Web — Quick BASIC quick-launch flow (v0.0.5-RType, sub-step 5)
 //
-// Data-flow A uit ARCHITECTURE.md, nu met concrete bindings:
+// Volledige flow:
 //   1. init() laadt vAmiga.js + WASM
 //   2. Check warm-snapshot in IndexedDB → ontbreekt = redirect /basic/setup
 //   3. Drop .bas → buildAdfWithBasFile() → ADF Uint8Array
 //   4. bindings.restoreStateFromBuffer(warm-snapshot)
-//   5. bindings.loadFile('df1.adf', adf, 1)   // drive=1 = DF1:
-//   6. bindings.scheduleKey(LOAD-keycodes ...) → "LOAD \"DF1:launch.bas\"<CR>"
-//   7. auto-RUN ? scheduleKey(RUN<CR>) : stop in prompt
+//   5. bindings.loadFile('basic.adf', adf, 1) → DF1: in Amiga
+//   6. playSequence('LOAD "DF1:launch.bas"<CR>')
+//   7. auto-RUN ? playSequence('RUN<CR>') : stop in prompt
 //   8. bindings.run()
 //
-// Sub-step 4 implementatie: smoke-test van init() + ADF-bouw werkt; volledige
-// keyboard-sequence + warm-snapshot-restore in sub-step 5 met user-assets.
+// **Status sub-step 5:** Infrastructuur klaar. Live tunen met user .bas test
+// in browser.
 
 import { init, getBindings, hasWarmSnapshot, loadAsset } from '../wasm-bridge.js';
 import { buildAdfWithBasFile, _internal as adfInternal } from '../lib/build-blank-adf.js';
+import { encodeStringToSequence, playSequence } from '../lib/amiga-keymap.js';
 
 const dropzone = document.getElementById('dropzone');
 const status = document.getElementById('status');
@@ -30,6 +31,8 @@ function setStatus(msg, kind = 'info') {
     'var(--wb-grey-dark)';
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 async function bootCheck() {
   setStatus('Controleer asset-status...');
   const hasSnap = await hasWarmSnapshot();
@@ -44,42 +47,60 @@ async function bootCheck() {
 
 async function handleBasFile(file) {
   if (!file.name.toLowerCase().endsWith('.bas')) {
-    setStatus(`Bestand "${file.name}" is geen .bas — alleen AmigaBASIC v0.0.4`, 'error');
+    setStatus(`Bestand "${file.name}" is geen .bas — alleen AmigaBASIC v0.0.5`, 'error');
     return;
   }
   if (file.size > adfInternal.OFS_DATA_PER_BLOCK) {
     setStatus(
-      `Bestand ${file.size} bytes — v0.0.4 limiet ${adfInternal.OFS_DATA_PER_BLOCK} bytes (1 OFS data-block). ` +
-      `Multi-block-support komt v0.0.5.`,
+      `Bestand ${file.size} bytes — v0.0.5 limiet ${adfInternal.OFS_DATA_PER_BLOCK} bytes ` +
+      `(1 OFS data-block). Multi-block-support komt v0.0.6.`,
       'error',
     );
     return;
   }
-  setStatus(`Lezen ${file.name} (${file.size} bytes)...`);
-  const basContent = new Uint8Array(await file.arrayBuffer());
 
   try {
-    setStatus('Bouw OFS-ADF met launch.bas in DF1:...');
-    const adf = buildAdfWithBasFile(basContent, 'launch.bas', 'BAS');
-    setStatus(`ADF gebouwd: ${adf.length} bytes (verwacht 901120) — sub-step 5 zal warm-snapshot restoren + ADF mounten + keys schedulen`, 'success');
+    setStatus(`Lezen ${file.name} (${file.size} bytes)...`);
+    const basContent = new Uint8Array(await file.arrayBuffer());
 
-    // Sub-step 5 zal:
-    //   const bindings = await getBindings();
-    //   const snap = await loadAsset('amigahorse-states', 'basic-env-snapshot');
-    //   bindings.restoreStateFromBuffer(new Uint8Array(await snap.blob.arrayBuffer()));
-    //   bindings.loadFile('basic.adf', adf, 1);
-    //   const sequence = encodeAmigaKeyboardString('LOAD "DF1:launch.bas"\r' + (autoRunCheckbox.checked ? 'RUN\r' : ''));
-    //   for (const [code, frameDelay] of sequence) bindings.scheduleKey(code, 0, 1, frameDelay);
-    //   canvas.style.display = 'block';
-    //   bindings.run();
-    console.log('[quick-launch] sub-step 4 placeholder: ADF gebouwd', adf.length, 'autoRun=', autoRunCheckbox.checked);
+    setStatus('Bouw OFS-ADF met launch.bas...');
+    const adf = buildAdfWithBasFile(basContent, 'launch.bas', 'BAS');
+
+    setStatus('Init vAmiga-Module...');
+    const bindings = await getBindings();
+
+    setStatus('Restore warm-snapshot (BASIC-prompt-state)...');
+    const snapAsset = await loadAsset('amigahorse-states', 'basic-env-snapshot');
+    if (!snapAsset) {
+      setStatus('Warm-snapshot weg uit IndexedDB. Redirect naar setup...', 'error');
+      setTimeout(() => { window.location.href = './setup.html'; }, 1500);
+      return;
+    }
+    const snapBuf = new Uint8Array(await snapAsset.blob.arrayBuffer());
+    bindings.restoreStateFromBuffer(snapBuf);
+    await sleep(200);
+
+    setStatus(`Mount ADF (${adf.length} bytes) in DF1:...`);
+    const loadResult = bindings.loadFile('basic.adf', adf, 1);
+    console.log('[quick-launch] loadFile DF1: →', loadResult);
+    canvas.style.display = 'block';
+
+    setStatus('Type LOAD "DF1:launch.bas" + RUN...');
+    const autoRun = autoRunCheckbox.checked;
+    const cmd = autoRun
+      ? 'LOAD "DF1:launch.bas"\rRUN\r'
+      : 'LOAD "DF1:launch.bas"\r';
+    const seq = encodeStringToSequence(cmd);
+    await playSequence(bindings, seq);
+
+    bindings.run();
+    setStatus(autoRun ? 'Programma draait!' : 'Geladen in BASIC-prompt. Type RUN.', 'success');
   } catch (err) {
-    setStatus(`Fout bij ADF-bouw: ${err.message}`, 'error');
-    console.error('[quick-launch] ADF build error', err);
+    console.error('[quick-launch]', err);
+    setStatus(`Fout: ${err.message}`, 'error');
   }
 }
 
-// Smoke-test: alleen vAmiga.js + WASM laden zonder iets te doen
 async function runSmokeTest() {
   smokeTestButton.disabled = true;
   smokeTestButton.textContent = 'vAmiga module laden...';
@@ -87,15 +108,19 @@ async function runSmokeTest() {
     const state = await init();
     smokeTestButton.textContent = 'OK — Module ready';
     smokeTestButton.style.background = 'var(--wb-green)';
+    smokeTestButton.style.color = 'white';
     const bindings = state.bindings;
-    console.log('[smoke-test] bindings beschikbaar:', Object.keys(bindings));
+    console.log('[smoke-test] bindings:', Object.keys(bindings));
     setStatus(
-      `vAmiga-Module geladen + ${Object.keys(bindings).length} cwrap-bindings actief (run, halt, loadFile, scheduleKey, save/restoreState, ...).`,
+      `vAmiga-Module geladen + ${Object.keys(bindings).length} cwrap-bindings actief ` +
+      `(run, halt, reset, powerOn, configure, key, scheduleKey, loadFile, ` +
+      `saveStateToBuffer, restoreStateFromBuffer).`,
       'success',
     );
   } catch (err) {
     smokeTestButton.textContent = `Fout: ${err.message}`;
     smokeTestButton.style.background = 'var(--wb-red)';
+    smokeTestButton.style.color = 'white';
     smokeTestButton.disabled = false;
     setStatus(err.message, 'error');
     console.error('[smoke-test]', err);

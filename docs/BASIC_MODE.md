@@ -125,7 +125,104 @@ Zie `DESIGN_TOKENS.md`. Workbench-grijs (`#a0a0a0` 1.3-versie), Topaz-font (8/11
 - AmigaBASIC op KS 2.0+ (Commodore-bug; lockt UI)
 - Save/load van running BASIC-state (alleen warm-start vanaf prompt)
 
-## v0.0.3+ roadmap
+## Hoe te testen (v0.0.5-RType, sub-step 5)
+
+> Status: alle infrastructuur klaar. Live test door jou met user-supplied
+> binaries. Timing-konstanten in setup.js zijn educated guesses; pas aan in
+> sub-step 6+ na eerste bake-runs.
+
+### Stap 1 — Build
+
+```bash
+cd /Users/christian/Documents/Gemini_Projects/AmigaHorse_Web
+npm install                # eerste keer (esbuild devDep)
+npm run build:wasm         # vAmigaWeb → dist/vendor/vamigaweb/*.{js,wasm}
+npm run dev                # esbuild dev-server op :5173 + watch
+```
+
+Open in browser: `http://127.0.0.1:5173/`
+
+### Stap 2 — Smoke-test
+
+Klik op de Quick BASIC kaart → `/basic/`. Daar staat een knop **"Smoke-test:
+vAmiga.wasm laden"**. Verwacht resultaat:
+
+- Knop wordt groen met "OK — Module ready"
+- Status-tekst toont "vAmiga-Module geladen + N cwrap-bindings actief"
+- Console (devtools F12) toont bindings-array: `['run', 'halt', 'reset',
+  'powerOn', 'configure', 'key', 'scheduleKey', 'loadFile',
+  'saveStateToBuffer', 'restoreStateFromBuffer']`
+
+**Faalt smoke-test?**
+- "Kan vAmiga.js niet laden" → controleer `npm run build:wasm` heeft `dist/vendor/vamigaweb/` gevuld
+- "window.Module al gezet door iets anders" → harde page-reload (cmd+shift+r)
+- Andere fout → kijk in browser-console + `/tmp/esbuild-dev.log` op host
+
+### Stap 3 — Asset-Setup
+
+Klik "Asset-Setup opnieuw doorlopen" of ga rechtstreeks naar
+`http://127.0.0.1:5173/basic/setup.html`.
+
+Upload je drie bestanden:
+- **Stap 1:** `kick13.rom` (Kickstart 1.3 ROM, ±256 KB)
+- **Stap 2:** `wb13.adf` (Workbench 1.3 ADF, exact 880 KB)
+- **Stap 3:** AmigaBASIC binary (~100 KB; van de Workbench 1.3 disk root)
+
+Elke upload gaat naar IndexedDB. Geen netwerk-verkeer.
+
+### Stap 4 — Warm-snapshot bake
+
+Klik **"Start bake"**. Verwacht ~10-15 sec sequentie:
+1. Init vAmiga-Module (~2 sec WASM-load)
+2. Load Kickstart 1.3 ROM
+3. powerOn
+4. Mount WB 1.3 ADF in DF0:
+5. Run + wachten op WB-boot (~8 sec)
+6. Type `AmigaBASIC<RET>` om te starten (~3 sec)
+7. Save workspace → IndexedDB
+8. Redirect naar `/basic/`
+
+**Verwachte failure-punten v0.0.5 (live tunen):**
+- **Stap 6 (CLI-launch):** WB 1.3 verwacht muis-double-click op icon, niet CLI.
+  Als `AmigaBASIC<RET>` niet werkt: probeer eerst `NewCLI<RET>` of `NewShell<RET>`,
+  dan `AmigaBASIC<RET>`. Of: AmigaBASIC binary moet eerst in `C:` directory
+  (te kopiëren via `COPY DF0:AmigaBASIC C:` in CLI). Sub-step 6 voegt mouse-emulation toe.
+- **Stap 7 (save lege):** Als emulator nog niet helemaal geboot is wanneer
+  saveStateToBuffer wordt aangeroepen, retourneert die misschien 0 bytes.
+  Verhoog wachttijd in setup.js regel `await sleep(8000);` naar `12000`.
+- **ROM-load (drive=0xFF):** Onbekend of vAmigaWeb 0xFF correct interpreteert
+  als "geen drive" voor ROM-binaries. Als loadFile faalt: probeer `0` of `0xFE`.
+
+### Stap 5 — Quick BASIC `.bas`-test
+
+Na succesvolle bake → `/basic/` dropzone.
+
+Maak een test-`.bas`-bestand (≤488 bytes):
+
+```basic
+10 PRINT "HELLO WORLD FROM AMIGAHORSE"
+20 FOR I = 1 TO 5
+30 PRINT I
+40 NEXT I
+```
+
+Sleep het bestand op de dropzone. Verwacht:
+1. ADF opgebouwd (901120 bytes)
+2. Module ready
+3. Warm-snapshot restored (Amiga staat in BASIC-prompt)
+4. ADF mounted in DF1:
+5. Auto-typed: `LOAD "DF1:launch.bas"<CR>` + (als auto-RUN aan) `RUN<CR>`
+6. Output: `HELLO WORLD FROM AMIGAHORSE` + `1` `2` `3` `4` `5` (op Amiga-canvas)
+
+**Bekende beperkingen v0.0.5:**
+- Canvas-rendering nog niet wired (`canvas.style.display = 'block'` maar leeg) —
+  vAmiga's framebuffer-blit-loop komt in v0.0.6
+- Geen audio yet
+- Auto-RUN-checkbox werkt; uitschakelen stopt na LOAD (handmatig RUN typen)
+- 488-byte file-size limiet (single OFS data-block)
+- Geen multi-disk projecten
+
+## v0.0.6+ roadmap (na werkende sub-step 5)
 
 - **AMOS support** — eigen runtime (AMOS Professional ROM is closed; AMOS source is GPL beschikbaar)
 - **`amigahorse-basic-bundle.zip`** — één-file asset-upload i.p.v. 3 pickers

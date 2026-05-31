@@ -76,9 +76,14 @@ if (mode === 'dev') {
   const ctx = await esbuild.context(baseOptions);
   await ctx.watch();
 
-  const { host, port } = await ctx.serve({
+  // Poort configureerbaar via PORT env var; default 5173 (Vite-conventie).
+  // 8000 is bewust niet default: Christian heeft een SSH-tunnel naar HC55 op
+  // localhost:8000 (zie SHARED_INFRASTRUCTURE.md).
+  const port = Number(process.env.PORT) || 5173;
+
+  const { host } = await ctx.serve({
     servedir: DIST,
-    port: 8000,
+    port,
     // COOP+COEP-headers — niet strikt nodig voor nonworker-vAmigaWeb-build,
     // maar al wel correct voor toekomstige worker-mode (P-AMH-08, v0.x).
     onRequest: ({ method, path: requestPath, status, timeInMS }) => {
@@ -87,6 +92,7 @@ if (mode === 'dev') {
   });
   console.log(`AmigaHorse_Web dev-server: http://${host}:${port}/`);
   console.log('Watching src/ voor changes (Ctrl+C om te stoppen)');
+  console.log('(Wijzig poort met PORT=5174 npm run dev)');
 } else {
   copyStaticAssets();
   await esbuild.build({ ...baseOptions, minify: true });
