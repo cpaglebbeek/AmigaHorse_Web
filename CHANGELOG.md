@@ -2,6 +2,45 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Codenamen uit pool `Meta_AmigaHorse/CLAUDE.md`.
 
+## [0.0.16-StuntCarRacer] — 2026-06-01 (bugfix: scrambled output + canvas height=0px race)
+
+> Codenaam **Stunt Car Racer** (Geoff Crammond / MicroProse 1989, beruchte ramp-jumps — "ontspoord beeld dat weer rechtgetrokken wordt"). **Geel bugfix** (twee JS↔Core binding-bugs in CanvasRenderer).
+
+### Fixed
+- **Bug A — Canvas onzichtbaar na 1e drop:** `canvas-renderer.js` `fitToContainer()` werd door `quick-launch.js:119` direct na `start()` aangeroepen, vóór het eerste tick had gelopen. `lastSize` was nog `{w:0, h:0}` → ratio=0 → `canvas.style.height = '0px'` → canvas heeft géén zichtbare hoogte. Symptoom: na 1e drop bleef dropzone overlay zichtbaar (canvas eronder = onzichtbaar). 2e drop "werkte" omdat lastSize inmiddels gevuld was door overlevende ticks.
+- **Bug B — Scrambled output:** vAmiga's pixel-buffer is **altijd HPIXELS=912 wide** (vol Amiga-raster incl. HBLANK/VBLANK/overscan), ongeacht zichtbaar window. Wij lazen `clipped_w × clipped_h` lineair vanaf base-pointer → ontbrekende stride → diagonale shearing. Symptoom: zodra canvas wél zichtbaar werd (2e drop), bevatte het een totaal vervormd beeld.
+- **Root mechanisme**: vAmigaWeb signaleert het zichtbare window via `js_set_display(xOff, yOff, w, h)` EM_ASM callback (main.cpp:181,1473). Wij hadden die in v0.0.12-ProjectX gestub'd als no-op om de `ReferenceError` te suppressen — daardoor wist onze renderer niet welk gedeelte van de 912×313 textuur te tonen.
+
+### Changed
+- `src/wasm-bridge.js`: `js_set_display`-stub vervangen door echte capture in `window.__vamigaViewport = {xOff, yOff, w, h, dirty}`. Defaults uit vAmigaWeb's eigen `vAmiga_canvas.js` (xOff=18, yOff=32, w=886, h=281) tot eerste C++-call het overschrijft.
+- `src/lib/canvas-renderer.js`: volledige rewrite van blit-logica (~50 regels) — leest pixel-buffer met **stride = HPIXELS × 4 bytes/row**, vanaf `pixelBuffer + yOff*HPIXELS*4`, voor `HPIXELS × clipped_h` aan bytes. Crop tot visible window via `putImageData(image_data, -xOff, 0, xOff, 0, clipped_w, clipped_h)` — exact het pattern uit vAmigaWeb's eigen `render_canvas()` (`js/vAmiga_canvas.js:20-33`).
+- `canvas-renderer.js` `fitToContainer()`: lazy — bewaart `containerMaxWidth`, past CSS pas toe ná `firstFrameRendered=true` flag. Voorkomt height=0 race definitief.
+- HPIXELS/VPIXELS als module-constants (912/313) — komt uit `Core/Infrastructure/Constants.h`.
+
+### RCA (drie-niveaus per CLAUDE.md)
+- **Functioneel:** Eerste .bas-drop = onzichtbare canvas (dropzone-tekst bleef). Tweede drop = canvas zichtbaar maar scrambled. Beide bugs sloegen verschillende lagen aan maar manifesteerden gelijktijdig.
+- **Technisch:** Twee onafhankelijke JS↔Core-protocol-faults: (1) timing-aanname over `lastSize` in `fitToContainer`; (2) verkeerde aanname dat pixel-buffer = `renderWidth × renderHeight` (in werkelijkheid altijd HPIXELS-wide, en `wasm_get_render_width` = clipped_width, dat is window-size niet stride).
+- **Architectonisch:** vAmigaWeb's pixel-protocol vereist 5 informatiestukken (HPIXELS-stride, pixelBuffer-base, xOff, yOff, clipped_w, clipped_h) waarvan alleen 2 via cwrap (`pixelBuffer`, `renderWidth/Height`) — de rest komt **alleen** via EM_ASM-callback. Stubben van die callback = protocol-breaking. `docs/CORE_API_CONTRACT.md` (geplanned v0.0.16+) moet expliciet vermelden: js_set_display is NIET optioneel als je eigen renderer schrijft.
+
+### Verified (statisch)
+- ✓ `node --check src/lib/canvas-renderer.js` + `src/wasm-bridge.js`
+- ✓ vAmigaWeb HPIXELS-constante bevestigd: `Core/Infrastructure/Constants.h:90` (`static const isize HPIXELS = 912;`)
+- ✓ vAmigaWeb's `render_canvas()` reference pattern in `js/vAmiga_canvas.js:20-33` gevolgd: zelfde offset-berekening, zelfde putImageData-crop-args
+- ✓ EM_ASM call site main.cpp:181,1473 stuurt `(xOff, yOff, clipped_width*TPP, clipped_height)` — TPP=1 in onze build dus 1:1
+
+### Te verifieren door user
+- Hard-refresh + Quick BASIC drop sample.bas:
+  - 1e drop al direct zichtbaar canvas met juiste afmetingen (geen height=0)
+  - Beeld is **niet scrambled**: tekst Workbench/BASIC leesbaar, geen diagonale shearing
+  - Console: `[vAmiga→js] js_set_display: {xOff, yOff, w, h}` verschijnt binnen ~1 sec
+  - Console: `[canvas-renderer] pixel-format gedetecteerd: RGBA` of `ARGB`
+
+### Open na v0.0.16
+- Bake-flow visueel: bake-canvas zou nu ook correct moeten renderen tijdens 8-sec WB-boot
+- Audio (v0.0.7 ScriptProcessorNode) moet ook werken zodra emulator stept
+- Dropzone-UX: na succesvolle 1e drop zou dropzone-tekst kunnen wijzigen naar "Drop een andere .bas om te vervangen" (lage prio)
+- `docs/CORE_API_CONTRACT.md` (architectuur, v0.0.17+) — pixel-protocol formaal documenteren
+
 ## [0.0.15-Populous] — 2026-06-01 (bugfix: render-loop miste wasm_execute() — leeg/bevroren canvas)
 
 > Codenaam **Populous** (Bullfrog 1989, god-game — fitting "creator-zonder-tijd-stepping zou een lege wereld maken"). **Geel bugfix** (frame-step contract met Core ontbrak).

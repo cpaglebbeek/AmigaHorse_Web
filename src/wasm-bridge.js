@@ -63,15 +63,23 @@ export function init() {
       return;
     }
 
-    // v0.0.12-ProjectX — JS-callbacks die vAmigaWeb via EM_ASM aanroept.
-    // Originele vAmigaWeb laadt js/vAmiga_canvas.js met deze functies + jQuery.
-    // Wij gebruiken eigen CanvasRenderer (rAF + pixelBuffer cwrap) dus stubben:
-    //   js_set_display(xOff, yOff, w, h)  — viewport-geometrie callback (main.cpp:181,1473)
-    //   scaleVMCanvas()                   — DOM-resize-call uit zelfde EM_ASM
-    // No-op is veilig: onze renderer leest renderWidth/Height direct via cwrap.
+    // v0.0.16-StuntCarRacer — js_set_display geeft de viewport-geometrie binnen
+    // de 912×313 HPIXELS×VPIXELS-textuur (main.cpp:181,1473). CanvasRenderer
+    // heeft deze nodig om met de juiste stride en crop te blitten — anders:
+    // diagonale shearing / scrambled beeld (v0.0.15-Populous symptoom).
+    //
+    // Defaults (uit external/vamigaweb/js/vAmiga_canvas.js:5-8):
+    //   xOff=HBLANK_MIN(0x12)=18, yOff=32, w=HPIXELS-xOff-8=886, h=VPIXELS-yOff=281
+    // Worden meteen overschreven bij eerste js_set_display call.
+    if (typeof window.__vamigaViewport === 'undefined') {
+      window.__vamigaViewport = { xOff: 18, yOff: 32, w: 886, h: 281, dirty: true };
+    }
     if (typeof window.js_set_display === 'undefined') {
       window.js_set_display = (xOff, yOff, w, h) => {
-        console.debug('[vAmiga→js] js_set_display(stub):', { xOff, yOff, w, h });
+        // Even-height enforce (vAmigaWeb doet dat ook, zie js_set_display l40)
+        if (h % 2 !== 0) h++;
+        window.__vamigaViewport = { xOff, yOff, w, h, dirty: true };
+        console.debug('[vAmiga→js] js_set_display:', window.__vamigaViewport);
       };
     }
     if (typeof window.scaleVMCanvas === 'undefined') {

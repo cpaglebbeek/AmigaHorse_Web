@@ -1,20 +1,26 @@
-// AmigaHorse_Web — Canvas-renderer (v0.0.6-Apidya, sub-step 6)
+// AmigaHorse_Web — Canvas-renderer (v0.0.16-StuntCarRacer)
 //
-// Render-loop voor vAmiga-framebuffer → HTML5 Canvas2D via ImageData.
+// vAmiga's pixel-buffer-layout (uit external/vamigaweb/js/vAmiga_canvas.js):
+// - Texel = u32 (RGBA, byte-order detect bij eerste frame)
+// - Volledige textuur = HPIXELS × VPIXELS = 912 × 313 (vol Amiga raster incl.
+//   HBLANK + VBLANK + overscan), ONGEACHT zichtbare resolutie
+// - Het zichtbare window staat op (xOff, yOff) met dimensies (clipped_w, clipped_h)
+// - vAmigaWeb signaleert deze geometrie via EM_ASM `js_set_display(xOff, yOff, w, h)`
+//   (zie wasm-bridge.js — gevangen in window.__vamigaViewport)
 //
-// vAmiga's pixel-buffer layout (uit `wasm_pixel_buffer()` → `Texel*`):
-// - Texel = u32 (ARGB of RGBA, te detecteren op runtime)
-// - Width × Height pixels in row-major
-// - Standaard Amiga OCS: ~320×256 (PAL) of 320×200 (NTSC)
-// - High-res / interlace verdubbelt dims
+// Correct blit (vAmigaWeb's eigen pattern, vAmiga_canvas.js:20-33):
+//   1. ImageData = HPIXELS × clipped_height (volle width, geknipte height)
+//   2. Lees HEAPU8 vanaf `pixelBuffer + yOff * HPIXELS * 4`, lengte HPIXELS*ch*4
+//   3. putImageData(image_data, -xOff, 0, xOff, 0, clipped_width, clipped_height)
+//      ↳ negatief dx + dirty-region = crop tot zichtbaar window
 //
-// Loop-pattern:
-//   requestAnimationFrame → wasm_draw_one_frame(performance.now())
-//     → wasm_pixel_buffer() → HEAPU8.subarray → ImageData → putImageData
-//
-// vAmiga draait nominaal op 50Hz (PAL) of 60Hz (NTSC). Browser
-// requestAnimationFrame is meestal 60Hz; we draaien gewoon zo snel mogelijk en
-// vAmiga interne timing zorgt voor frame-rate-consistency.
+// Fout (v0.0.15-Populous): we lazen `clipped_w × clipped_h` lineair vanaf base —
+// ontbrekende HPIXELS stride → diagonale shearing → scrambled beeld.
+
+const HPIXELS = 912;   // vol raster (zie Core/Infrastructure/Constants.h)
+const VPIXELS = 313;
+const BYTES_PER_PIXEL = 4;
+const HPIXELS_BYTES = HPIXELS * BYTES_PER_PIXEL;
 
 export class CanvasRenderer {
   /**
@@ -29,27 +35,24 @@ export class CanvasRenderer {
     this.ctx = canvas.getContext('2d');
     if (!this.ctx) throw new Error('Canvas 2D-context niet beschikbaar');
 
-    this.imageData = null;     // herzien zodra eerste frame size bekend is
-    this.lastSize = { w: 0, h: 0 };
+    // ImageData op volle HPIXELS-breedte; height groeit mee met viewport
+    this.imageData = null;
+    this.lastImgHeight = 0;
     this.rafHandle = null;
     this.running = false;
     this.frameCount = 0;
     this.lastFpsCheck = 0;
     this.fps = 0;
-    // Pixel-format-detect (sub-step 7): vAmiga schrijft alpha=0xFF op alle pixels;
-    // we kijken bij eerste valide frame of byte-0 of byte-3 == 0xFF om RGBA vs ARGB
-    // te onderscheiden. `null` = nog niet bepaald.
-    this.pixelFormat = null;   // 'RGBA' | 'ARGB' | null
+    this.pixelFormat = null;       // 'RGBA' | 'ARGB'
+    this.firstFrameRendered = false;
+    this.containerMaxWidth = 800;  // gezet door fitToContainer; lazy-applied
   }
 
   /**
    * Heuristiek: vAmiga zet alpha=0xFF op alle pixels. Detecteer of het in byte-0
    * (ARGB / Mac/iOS-stijl) of byte-3 (RGBA / Canvas2D-stijl) staat.
-   *
-   * Test op meerdere pixels om noise te vermijden.
    */
   _detectPixelFormat(heapView) {
-    // Sample 8 pixels verspreid over de buffer
     const stride = Math.max(4, Math.floor(heapView.length / 8 / 4) * 4);
     let rgbaScore = 0;
     let argbScore = 0;
@@ -58,7 +61,7 @@ export class CanvasRenderer {
       if (heapView[i + 0] === 0xFF) argbScore++;
     }
     if (argbScore > rgbaScore) return 'ARGB';
-    return 'RGBA';   // default (Canvas2D-conventie + onbeslist)
+    return 'RGBA';
   }
 
   /**
@@ -67,7 +70,6 @@ export class CanvasRenderer {
    */
   _copyPixels(heapView, dst) {
     if (this.pixelFormat === 'ARGB') {
-      // ARGB → RGBA: shift bytes [A,R,G,B] → [R,G,B,A]
       for (let i = 0; i < heapView.length; i += 4) {
         const a = heapView[i];
         const r = heapView[i + 1];
@@ -79,14 +81,24 @@ export class CanvasRenderer {
         dst[i + 3] = a;
       }
     } else {
-      // RGBA direct
       dst.set(heapView);
     }
   }
 
   /**
-   * Start de render-loop. Idempotent: tweede call wordt genegeerd.
+   * Update canvas CSS-grootte op basis van huidige viewport. Idempotent.
+   * Roept dezelfde berekening aan als oude fitToContainer maar pas NA eerste
+   * frame met geldige dimensies → voorkomt height=0px race (v0.0.15-bug).
    */
+  _applyCanvasCss(clippedW, clippedH) {
+    const ratio = clippedH / (clippedW || 1);
+    const w = Math.min(this.containerMaxWidth, window.innerWidth - 32);
+    const h = Math.round(w * ratio);
+    this.canvas.style.width = `${w}px`;
+    this.canvas.style.height = `${h}px`;
+    this.canvas.style.imageRendering = 'pixelated';
+  }
+
   start() {
     if (this.running) return;
     this.running = true;
@@ -95,9 +107,6 @@ export class CanvasRenderer {
     this._tick();
   }
 
-  /**
-   * Stop de render-loop.
-   */
   stop() {
     this.running = false;
     if (this.rafHandle !== null) {
@@ -107,52 +116,68 @@ export class CanvasRenderer {
   }
 
   /**
-   * Eén frame: laat emulator stappen + blit framebuffer naar canvas.
+   * Eén frame: CPU step + framebuffer-sync + blit naar canvas.
    */
   _tick() {
     if (!this.running) return;
     const now = performance.now();
 
     try {
-      // v0.0.15-Populous: vAmiga heeft TWEE calls per frame nodig (zie
-      // external/vamigaweb/js/vAmiga_ui.js:1947 + :1976):
-      //   wasm_execute()        = emu->computeFrame() — CPU/chipset stepping
-      //   wasm_draw_one_frame() = framebuffer-sync + dimensies + warping
-      // Zonder execute() rust de emulator stil → framebuffer leeg/bevroren.
-      this.bindings.execute();
-      this.bindings.drawOneFrame(now);
+      // Twee calls per frame (vAmigaWeb's do_animation_frame contract):
+      this.bindings.execute();          // CPU/chipset stepping (computeFrame)
+      this.bindings.drawOneFrame(now);  // framebuffer-sync + js_set_display call
 
-      // Lees framebuffer-dimensies (kan wijzigen bij resolution-switch)
-      const w = this.bindings.renderWidth();
-      const h = this.bindings.renderHeight();
-      if (w > 0 && h > 0) {
-        // Resize canvas + ImageData als afmetingen veranderd
-        if (w !== this.lastSize.w || h !== this.lastSize.h) {
-          this.canvas.width = w;
-          this.canvas.height = h;
-          this.imageData = this.ctx.createImageData(w, h);
-          this.lastSize = { w, h };
+      // Huidige viewport uit window.__vamigaViewport (gezet via EM_ASM callback)
+      const vp = window.__vamigaViewport || { xOff: 18, yOff: 32, w: 886, h: 281 };
+      const { xOff, yOff, w: clippedW, h: clippedH } = vp;
+
+      if (clippedW <= 0 || clippedH <= 0) {
+        // Viewport nog niet gezet of degenereerd — sla deze tick over
+        this.rafHandle = requestAnimationFrame(() => this._tick());
+        return;
+      }
+
+      // Canvas-intern op visible-window grootte
+      if (this.canvas.width !== clippedW || this.canvas.height !== clippedH) {
+        this.canvas.width = clippedW;
+        this.canvas.height = clippedH;
+      }
+
+      // ImageData op volle HPIXELS × clippedH (we putImageData-en met crop)
+      if (!this.imageData || this.lastImgHeight !== clippedH) {
+        this.imageData = this.ctx.createImageData(HPIXELS, clippedH);
+        this.lastImgHeight = clippedH;
+      }
+
+      // Pixel-buffer: start yOff rijen vóór de visible top
+      const ptrBase = this.bindings.pixelBuffer();
+      if (ptrBase !== 0) {
+        const sourceOffset = ptrBase + yOff * HPIXELS_BYTES;
+        const bytesNeeded = HPIXELS * clippedH * BYTES_PER_PIXEL;
+        const heapView = this.Module.HEAPU8.subarray(
+          sourceOffset,
+          sourceOffset + bytesNeeded,
+        );
+
+        if (this.pixelFormat === null && heapView.length >= 4) {
+          this.pixelFormat = this._detectPixelFormat(heapView);
+          console.log(`[canvas-renderer] pixel-format gedetecteerd: ${this.pixelFormat}`);
         }
 
-        // Kopieer pixel-buffer uit WASM-heap naar ImageData.data
-        const ptr = this.bindings.pixelBuffer();
-        if (ptr !== 0) {
-          // Texel = u32 = 4 bytes per pixel.
-          const bytes = w * h * 4;
-          const heapView = this.Module.HEAPU8.subarray(ptr, ptr + bytes);
+        this._copyPixels(heapView, this.imageData.data);
 
-          // Sub-step 7: pixel-format-auto-detect bij eerste frame
-          if (this.pixelFormat === null && heapView.length >= 4) {
-            this.pixelFormat = this._detectPixelFormat(heapView);
-            console.log(`[canvas-renderer] pixel-format gedetecteerd: ${this.pixelFormat}`);
-          }
+        // Crop tot visible: putImageData(data, dx, dy, dirtyX, dirtyY, dirtyW, dirtyH)
+        // dx=-xOff schuift de bron-textuur naar links, dirtyX=xOff begint de crop
+        // → resultaat: pixel (xOff,0) in bron landt op (0,0) in canvas
+        this.ctx.putImageData(this.imageData, -xOff, 0, xOff, 0, clippedW, clippedH);
 
-          this._copyPixels(heapView, this.imageData.data);
-          this.ctx.putImageData(this.imageData, 0, 0);
+        // Eerste valide frame: nu kunnen we CSS-grootte zetten zonder height=0
+        if (!this.firstFrameRendered) {
+          this.firstFrameRendered = true;
+          this._applyCanvasCss(clippedW, clippedH);
         }
       }
 
-      // FPS-counter (update elke seconde)
       this.frameCount++;
       if (now - this.lastFpsCheck >= 1000) {
         this.fps = this.frameCount;
@@ -169,15 +194,19 @@ export class CanvasRenderer {
   }
 
   /**
-   * Resize handler: roep aan als window-size verandert om CSS-grootte aan te passen.
-   * (Pixel-data blijft op native vAmiga-resolutie; we scalen via CSS.)
+   * Bewaar max-CSS-breedte; daadwerkelijke style wordt pas in _tick() toegepast
+   * zodra het eerste frame met geldige dimensies binnen is. Voorkomt v0.0.15-race
+   * waarbij height=0px werd gezet voordat lastSize bekend was.
    */
   fitToContainer(maxWidth = 800) {
-    const ratio = this.lastSize.h / (this.lastSize.w || 1);
-    const w = Math.min(maxWidth, window.innerWidth - 32);
-    const h = Math.round(w * ratio);
-    this.canvas.style.width = `${w}px`;
-    this.canvas.style.height = `${h}px`;
-    this.canvas.style.imageRendering = 'pixelated';
+    this.containerMaxWidth = maxWidth;
+    if (this.firstFrameRendered) {
+      // Canvas heeft al een frame → meteen toepassen
+      const vp = window.__vamigaViewport;
+      if (vp && vp.w > 0 && vp.h > 0) {
+        this._applyCanvasCss(vp.w, vp.h);
+      }
+    }
+    // Anders: _tick() past het toe na eerste valide frame
   }
 }
