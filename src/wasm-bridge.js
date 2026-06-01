@@ -133,21 +133,18 @@ function bindFunctions(Module) {
   /**
    * wasm_loadFile(name, u8*buf, long len, u8 drive_number) → const char*
    * Buffer geheugen-allocatie in HEAPU8 + free na call.
+   * Voor name (string) + return (string): cwrap doet conversie. Alleen buf
+   * (u8*) wordt handmatig gealloceerd. vAmigaWeb's CMakeLists exporteert
+   * cwrap/ccall/HEAPU8/HEAPF32 (geen stringToNewUTF8/UTF8ToString direct).
    */
+  const _loadFileRaw = cwrap('wasm_loadFile', 'string', ['string', 'number', 'number', 'number']);
   function loadFile(name, buf, drive) {
     const len = buf.length;
     const ptr = Module._malloc(len);
     if (ptr === 0) throw new Error(`Module._malloc(${len}) faalde`);
     try {
       Module.HEAPU8.set(buf, ptr);
-      const namePtr = Module.stringToNewUTF8(name);
-      try {
-        const resultPtr = Module._wasm_loadFile(namePtr, ptr, len, drive);
-        const result = Module.UTF8ToString(resultPtr);
-        return result || '';
-      } finally {
-        Module._free(namePtr);
-      }
+      return _loadFileRaw(name, ptr, len, drive) || '';
     } finally {
       Module._free(ptr);
     }
