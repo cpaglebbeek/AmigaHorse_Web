@@ -48,7 +48,9 @@ function setStepStatus(stepId, msg, status = 'info') {
 }
 
 function maybeEnableBake() {
-  elBake.disabled = !(STATE.kick && STATE.wb && STATE.basic);
+  // Stap 3 (AmigaBASIC binary) is optioneel — AmigaBASIC zit al in WB 1.3 ADF.
+  // Enable bake zodra kick + wb beschikbaar zijn.
+  elBake.disabled = !(STATE.kick && STATE.wb);
 }
 
 async function handleUpload(file, expectedSize, storeName, label, stepId) {
