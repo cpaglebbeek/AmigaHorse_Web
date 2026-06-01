@@ -2,6 +2,47 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Codenamen uit pool `Meta_AmigaHorse/CLAUDE.md`.
 
+## [0.0.17-LotusEspritTurbo] — 2026-06-01 (bugfix: bake mounted disk maar Kickstart re-scande DF0 niet → reset toegevoegd)
+
+> Codenaam **Lotus Esprit Turbo** (Magnetic Fields / Gremlin 1990 — race-game met "reset+go" restart-mechanic). **Geel bugfix** (bake-flow timing-volgorde, JS↔Core protocol).
+
+### Fixed
+- **Bake-snapshot bevatte alleen Kickstart-prompt, geen Workbench.** Root cause: ROM-flash in `loadFile('kick13.rom_file')` doet **auto-powerOn+run** (main.cpp:1812-1813). Daarna toont Kickstart 1.3 de "insert Workbench disk"-prompt. Pas vervolgens mount setup.js de WB1.3 ADF in DF0:. Kickstart blijft op de prompt hangen — disk-insert-event post-boot wordt door K1.3 niet altijd dynamisch herkend zonder reset. Symptoom (zichtbaar dankzij v0.0.16 renderer-fix): re-bake-canvas toonde "AMIGA ROM V1.3" + hand-met-floppy ("insert disk"-icoon) zowel tijdens bake-wait áls na Quick-Launch-restore.
+- Fix: `bindings.reset()` (= `hardReset()` in main.cpp:1900-1903) na stage 4 disk-mount. Kickstart herstart, DF0 bevat nu al de WB-ADF → boot vanaf WB.
+
+### Changed
+- `src/basic/setup.js`:
+  - Nieuwe stage `4b.reset (re-scan DF0)` direct na stage 4 (loadFile WB)
+  - Sleep verhoogd van 8 → 12 seconden (WB 1.3 first-time boot van emulated 880KB OFS-disk duurt typisch 8-15 sec)
+  - Validatie toegevoegd op wbResult: warn als non-empty (disk-branch success returnt `""`)
+- Status-message aangepast naar "~12 sec" zodat user weet wat te verwachten
+
+### RCA (drie-niveaus per CLAUDE.md)
+- **Functioneel:** Bake voltooide zonder error maar warm-snapshot bevatte verkeerde state (Kickstart-prompt ipv AmigaBASIC). Pas zichtbaar nadat v0.0.16-renderer-fix het beeld correct rendert.
+- **Technisch:** Order-of-operations: ROM-flash → auto-powerOn+run → Kickstart toont insert-disk → daarna pas disk geïnsert in DF0. Kickstart 1.3 polled niet dynamisch op disk-insert na powerOn → blijft op prompt. hardReset() forceert herboot waarbij DF0 al disk heeft.
+- **Architectonisch:** vAmigaWeb's `wasm_loadFile`-ROM-branch combineert "flash ROM" + "powerOn" + "run" in één call — handig voor end-user maar problematisch voor scripted bake-flows waar disk ná ROM gemount wordt. Alternatief had geweest: ROM-branch zonder auto-run, of `wasm_load_disk_before_rom`-API. Geen van beide bestaat → reset-after-disk is de pragmatische workaround. Toe te voegen aan `docs/CORE_API_CONTRACT.md`.
+
+### Verified (statisch)
+- ✓ `node --check src/basic/setup.js`
+- ✓ `wasm_reset()` definitie main.cpp:1900-1903 → `hardReset()` (full reset)
+- ✓ Reset-binding bestond al sinds v0.0.6 (wasm-bridge.js:124 `cwrap('wasm_reset', 'void', [])`)
+
+### Te verifieren door user
+- Re-bake `/basic/setup.html` → bake-canvas moet nu tonen:
+  - Eerst: Kickstart insert-disk (kort, vóór reset)
+  - Dan: reset-flicker
+  - Dan: disk-twirl boot-animatie (~3 sec)
+  - Dan: WB 1.3 grijs scherm met menu bar
+  - Dan: AmigaBASIC-window open na keyboard `AmigaBASIC<RET>` (of na muis-double-click)
+- Console-logs: `[bake] 4b.reset (re-scan DF0)` stage zichtbaar
+- Na bake → Quick BASIC drop sample.bas → canvas toont **echte AmigaBASIC-output**, niet meer Kickstart-prompt
+
+### Open na v0.0.17
+- Mogelijk volgend: 12 sec is nog te kort → verleng naar 15 of meer
+- Mogelijk volgend: `AmigaBASIC<RET>` typing-sequence triggert niet (Workbench CLI vs Shell verschil) → muis-double-click stage 8 wordt dan de fallback
+- Audio nu zou ook moeten werken (CPU stept correct, snapshot is geldig)
+- `docs/CORE_API_CONTRACT.md` (v0.0.18+) — bake-flow protocol formaal documenteren
+
 ## [0.0.16-StuntCarRacer] — 2026-06-01 (bugfix: scrambled output + canvas height=0px race)
 
 > Codenaam **Stunt Car Racer** (Geoff Crammond / MicroProse 1989, beruchte ramp-jumps — "ontspoord beeld dat weer rechtgetrokken wordt"). **Geel bugfix** (twee JS↔Core binding-bugs in CanvasRenderer).

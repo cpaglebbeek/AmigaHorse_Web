@@ -153,9 +153,21 @@ async function bakeWarmSnapshot() {
     const wbResult = stage('4.loadFile-wb (wb13.adf, drive=0)',
       () => bindings.loadFile('wb13.adf', wbBuf, 0));
     console.log('[bake] wb load returned:', JSON.stringify(wbResult));
+    if (wbResult && wbResult !== '') {
+      console.warn(`[bake] WARN: wb load returned non-empty "${wbResult}" — verwacht "" (disk-branch success).`);
+    }
+
+    // v0.0.17-LotusEspritTurbo — hard-reset zodat Kickstart DF0 opnieuw scant.
+    // Probleem v0.0.16: ROM-flash deed auto powerOn+run vóór disk gemount was;
+    // Kickstart toonde "insert disk" en herkende post-boot-insert niet → bake-
+    // snapshot bevatte alleen Kickstart-prompt, geen Workbench. hardReset()
+    // forceert herstart waarbij DF0 nu wel een disk bevat → boot vanaf WB.
+    setStepStatus('step-4', 'Hard-reset zodat Kickstart DF0 opnieuw scant...');
+    stage('4b.reset (re-scan DF0)', () => bindings.reset());
+    await sleep(500);
 
     // -- Stap 4: Start canvas-renderer + wacht op WB-boot --
-    setStepStatus('step-4', 'Start canvas-renderer + wachten op Workbench-boot (~8 sec)...');
+    setStepStatus('step-4', 'Start canvas-renderer + wachten op Workbench-boot (~12 sec)...');
     const bakeCanvas = document.getElementById('bake-canvas');
     let bakeRenderer = null;
     if (bakeCanvas) {
@@ -168,7 +180,9 @@ async function bakeWarmSnapshot() {
     }
     // run() is no-op als ROM-branch al powerOn+run deed, maar veilig.
     stage('6.run', () => bindings.run());
-    await sleep(8000);
+    // v0.0.17: 8 → 12 sec. WB 1.3 first-time boot van emulated 880KB OFS-disk
+    // duurt typisch 8-15 sec (disk seek + RAM-init + handler-load + scripts).
+    await sleep(12000);
 
     // -- Stap 5: Open AmigaBASIC --
     setStepStatus('step-4', 'Try 1: CLI-typing "AmigaBASIC<RET>"...');
