@@ -87,11 +87,22 @@ export class CanvasRenderer {
 
   /**
    * Update canvas CSS-grootte op basis van huidige viewport. Idempotent.
-   * Roept dezelfde berekening aan als oude fitToContainer maar pas NA eerste
-   * frame met geldige dimensies → voorkomt height=0px race (v0.0.15-bug).
+   * Pas NA eerste frame aanroepen → voorkomt height=0px race (v0.0.15-bug).
+   *
+   * v0.0.18-XenonII — aspect-correctie:
+   * vAmiga rendert half-vertical-frame (geen interlace-doubling in framebuffer).
+   * Echte Amiga PAL "fat pixels" zijn ~2× zo hoog visueel. vAmigaWeb's eigen
+   * `scaleVMCanvas()` (js/vAmiga_canvas.js:62-100) doet:
+   *   src_height = clipped_height * 2
+   *   src_ratio  = (src_width / src_height) * 1.03   // 3% wider voor PAL
+   *
+   * Voor onze CSS-sizing: `effectiveH = clippedH * 2 * 1.03` (PAL pixel-aspect)
+   * → CSS-height = w * effectiveH / clippedW. Resultaat: niet meer plat/smal.
    */
   _applyCanvasCss(clippedW, clippedH) {
-    const ratio = clippedH / (clippedW || 1);
+    const PAL_ASPECT_BOOST = 1.03;  // vAmiga_canvas.js scaleVMCanvas l77
+    const effectiveH = clippedH * 2 * PAL_ASPECT_BOOST;
+    const ratio = effectiveH / (clippedW || 1);
     const w = Math.min(this.containerMaxWidth, window.innerWidth - 32);
     const h = Math.round(w * ratio);
     this.canvas.style.width = `${w}px`;

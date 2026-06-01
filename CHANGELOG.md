@@ -2,6 +2,54 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Codenamen uit pool `Meta_AmigaHorse/CLAUDE.md`.
 
+## [0.0.18-XenonII] — 2026-06-01 (bugfix: muis als absolute coords + verkeerde button-IDs + PAL aspect-ratio)
+
+> Codenaam **Xenon 2 Megablast** (Bitmap Brothers / Mirrorsoft 1989 — vertical shoot-em-up met multi-target-blasts; passend bij meerdere bugs in één fix). **Geel bugfix** (drie JS↔Core protocol-bugs in input + display).
+
+### Fixed
+- **Muis niet bestuurbaar (Bug 1 — coordinate-protocol).** `wasm_mouse(port, x, y)` doet `Cmd::MOUSE_MOVE_REL` (main.cpp:1953) → **delta** (dx, dy), niet absolute coords. Onze `MouseInput` (v0.0.6) stuurde bij elke `mousemove` absolute canvas-coords → vAmiga interpreteerde elke move als gigantische sprong → muis onbruikbaar.
+- **Muis-knoppen werken niet/verkeerd (Bug 2 — button-ID mapping).** vAmiga (`wasm_mouse_button`, main.cpp:1956-1968) verwacht button_id ∈ {1=LEFT, 2=MIDDLE, 3=RIGHT}. Wij gebruikten `BTN_LEFT=0, BTN_RIGHT=1` (v0.0.6) → links-klik = id 0 → no-op; rechts-klik = id 1 = LEFT → triggert links-klik.
+- **Scherm te smal (Bug 3 — PAL aspect-ratio).** Onze `_applyCanvasCss` (v0.0.16) gebruikt platte `clippedH/clippedW`-ratio. Amiga PAL gebruikt "fat pixels" (~2:1) → vAmigaWeb's eigen `scaleVMCanvas()` (`js/vAmiga_canvas.js:62-100`) doet `src_height = clipped_height * 2`, `src_ratio *= 1.03`. Onze ratio (zonder doubling) leverde te platte canvas die "te smal" voelt voor Amiga-content.
+
+### Changed
+- `src/lib/mouse-input.js`:
+  - Button-constanten: `BTN_LEFT=1`, `BTN_MIDDLE=2`, `BTN_RIGHT=3` (vAmiga-conventie)
+  - `_handleMove`: track `lastX/lastY`, stuur `(x-lastX, y-lastY)` als delta
+  - `mouseenter` listener: init `lastX/lastY` zodat eerste move geen sprong veroorzaakt
+  - `mouseleave` listener: clear tracking (geen onverwachte delta bij re-entry)
+  - `_handleDown/Up`: ondersteunt middle-button (e.button === 1 → BTN_MIDDLE)
+  - `scriptedClick/DoubleClick`: nieuwe `moveToAbsolute()` helper (delta -9999/-9999 om te parken in (0,0), dan delta = target) zodat bake-flow scripted clicks ook werken met REL-only API
+- `src/lib/canvas-renderer.js` `_applyCanvasCss`:
+  - `effectiveH = clippedH * 2 * 1.03` (PAL pixel-aspect-boost-constant `PAL_ASPECT_BOOST`)
+  - `ratio = effectiveH / clippedW` → CSS-hoogte schaalt mee met visuele Amiga-aspect
+
+### RCA (drie-niveaus per CLAUDE.md)
+- **Functioneel:** Bake werkt sinds v0.0.17 (WB+AmigaBASIC zichtbaar), maar pas nu user de canvas zinvol kan gebruiken werden mouse + screen-aspect issues zichtbaar. v0.0.16 t/m v0.0.17 maskeerden deze bugs door upstream issues.
+- **Technisch:** Drie onafhankelijke protocol-aannames waren fout sinds v0.0.6-Apidya: (1) `wasm_mouse` doet REL niet ABS, (2) button-IDs zijn 1/2/3 niet 0/1, (3) framebuffer-pixels zijn niet vierkant voor display. Eerste twee uit main.cpp via grep direct verifieerbaar; derde uit vAmiga_canvas.js `scaleVMCanvas`.
+- **Architectonisch:** vAmigaWeb's protocol-contracten (5e en 6e nu ontdekt) staan **alleen** in vAmiga_canvas.js + main.cpp commentaar — niet in headers/docs. Drie open-source repos doorzocht, geen API.md. Risico voor v0.0.19+: meer dergelijke protocol-bugs in audio/joystick/HD-loaders.
+
+### Verified (statisch)
+- ✓ `node --check src/lib/mouse-input.js` + `src/lib/canvas-renderer.js`
+- ✓ `wasm_mouse` body main.cpp:1944-1954 → `MOUSE_MOVE_REL` bevestigd
+- ✓ `wasm_mouse_button` body main.cpp:1956-1968 → 1/2/3 button-IDs bevestigd
+- ✓ `scaleVMCanvas` formule `js/vAmiga_canvas.js:62-100` → `src_height = clipped_height*2`, `src_ratio*=1.03`
+- ✓ Live bundle `dist/chunk-WAG2AZ5Y.js`: `BTN_LEFT = 1`, `PAL_ASPECT_BOOST`, `moveToAbsolute` aanwezig
+
+### Te verifieren door user
+- Hard-refresh + Quick BASIC dropzone:
+  - Canvas duidelijk hoger/breder dan v0.0.17 (proportioneel correct Amiga-aspect)
+  - Muis-beweging in canvas: pointer in Amiga volgt vloeiend mee (geen sprongen)
+  - Linkermuis-klik: selecteert iconen, opent menu, etc.
+  - Rechtermuis-klik: opent Workbench-menu (depth-gadget actie)
+- F12-console: geen errors meer over mouse-events
+
+### Open na v0.0.18
+- Mogelijk: muis-snelheid lijkt te traag/snel → vAmiga heeft mouse-speed-multiplier
+- Touchscreen-support (tablet/Z-Fold): touch-events → mouse-events mapping (Pointer Events API)
+- Joystick-binding (port 2) test
+- PointerLock-API voor relative-mode (smooth FPS-game style — niet nodig voor Workbench)
+- `docs/CORE_API_CONTRACT.md` (v0.0.19+) — input-protocol formaal: REL-only mouse, button-ID-tabel, PAL/NTSC-aspect-doubling
+
 ## [0.0.17-LotusEspritTurbo] — 2026-06-01 (bugfix: bake mounted disk maar Kickstart re-scande DF0 niet → reset toegevoegd)
 
 > Codenaam **Lotus Esprit Turbo** (Magnetic Fields / Gremlin 1990 — race-game met "reset+go" restart-mechanic). **Geel bugfix** (bake-flow timing-volgorde, JS↔Core protocol).
