@@ -2,6 +2,31 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Codenamen uit pool `Meta_AmigaHorse/CLAUDE.md`.
 
+## [0.0.14-IKPlus] — 2026-06-01 (bugfix: stale size-gate Quick BASIC weigert valide multi-block .bas)
+
+> Codenaam **IK+** (Archer Maclean 1988 Amiga port — fitting "knock out the stale gate"). **Geel bugfix** (stale UI-text + foutieve size-gate).
+
+### Fixed
+- `src/basic/quick-launch.js` `handleBasFile()` size-gate gebruikte nog `adfInternal.OFS_DATA_PER_BLOCK` (488 bytes = single OFS data-block, oude v0.0.6-grens). Sinds **v0.0.8-DefenderOfTheCrown** ondersteunt `build-blank-adf.js` multi-block-chains tot `MAX_FILE_SIZE = 35136` bytes (~34 KB, 72 OFS data-blocks). Valide .bas-files >488 bytes werden ten onrechte geweigerd met verouderde melding "v0.0.6 limiet ... Multi-block-support komt v0.0.7".
+- Gate-check vervangen door `adfInternal.MAX_FILE_SIZE`.
+- Foutmelding herschreven met actuele cijfers + suggestie (CHAIN/MERGE voor grotere programma's i.p.v. fout versie-belofte).
+- Tussentekst "alleen AmigaBASIC v0.0.6" → "alleen AmigaBASIC ondersteund" (versie-referentie verwijderd, geldt ook in toekomst).
+
+### RCA (drie-niveaus per CLAUDE.md)
+- **Functioneel:** User die een realistisch BASIC-programma (>488 bytes) drop kreeg een foutmelding die suggereerde dat de feature nog moest komen — feature was er al sinds v0.0.8.
+- **Technisch:** Sub-step 8 (v0.0.8) breidde de ADF-builder uit naar multi-block maar de **consumer** (quick-launch.js) bleef de single-block-constant gebruiken. Klassieke "API-change zonder caller-update".
+- **Architectonisch:** Géén gedeelde "limits"-module met centrale `MAX_FILE_SIZE`-export en assertion bij caller-zijde. Voor v0.0.15+: overweeg `src/lib/limits.js` met semantische namen i.p.v. `_internal`-via-ADF-builder.
+
+### Verified (statisch)
+- ✓ `node --check src/basic/quick-launch.js`
+- ✓ Live bundle: 0 hits voor "v0.0.6 limiet" en "komt v0.0.7"
+- ✓ Live bundle: nieuwe `_internal.MAX_FILE_SIZE`-referentie aanwezig + nieuwe foutmelding tekst zichtbaar
+- ✓ `_internal` export bevestigd `MAX_FILE_SIZE = 35136` + `MAX_DATA_BLOCK_PTRS = 72` + `OFS_DATA_PER_BLOCK = 488`
+
+### Niet-fix
+- Géén nieuwe `limits.js`-module aangemaakt (out-of-scope deze Geel bugfix; gemarkeerd voor v0.0.15+)
+- Géén tests toegevoegd (geen bestaande test-suite voor quick-launch)
+
 ## [0.0.13-SuperFrog] — 2026-06-01 (bugfix: FS-bypass voor save/restore-state via wasm_take_user_snapshot)
 
 > Codenaam **Super Frog** (Team17 1993, platformer — fitting "frozen-frame snapshot" en "leap over the FS-puddle"). **Geel bugfix** (JS↔WASM binding-bug, vervolg op v0.0.12-ProjectX).

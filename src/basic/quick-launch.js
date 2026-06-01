@@ -54,13 +54,15 @@ async function bootCheck() {
 
 async function handleBasFile(file) {
   if (!file.name.toLowerCase().endsWith('.bas')) {
-    setStatus(`Bestand "${file.name}" is geen .bas — alleen AmigaBASIC v0.0.6`, 'error');
+    setStatus(`Bestand "${file.name}" is geen .bas — alleen AmigaBASIC ondersteund`, 'error');
     return;
   }
-  if (file.size > adfInternal.OFS_DATA_PER_BLOCK) {
+  if (file.size > adfInternal.MAX_FILE_SIZE) {
     setStatus(
-      `Bestand ${file.size} bytes — v0.0.6 limiet ${adfInternal.OFS_DATA_PER_BLOCK} bytes ` +
-      `(1 OFS data-block). Multi-block-support komt v0.0.7.`,
+      `Bestand ${file.size} bytes — limiet ${adfInternal.MAX_FILE_SIZE} bytes ` +
+      `(~${Math.floor(adfInternal.MAX_FILE_SIZE / 1024)} KB, ` +
+      `${adfInternal.MAX_DATA_BLOCK_PTRS} OFS data-blocks × ${adfInternal.OFS_DATA_PER_BLOCK} bytes). ` +
+      `Voor grotere programma's: splits in meerdere .bas-files via CHAIN of MERGE.`,
       'error',
     );
     return;
