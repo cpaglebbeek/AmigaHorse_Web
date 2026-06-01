@@ -2,6 +2,37 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Codenamen uit pool `Meta_AmigaHorse/CLAUDE.md`.
 
+## [0.0.15-Populous] — 2026-06-01 (bugfix: render-loop miste wasm_execute() — leeg/bevroren canvas)
+
+> Codenaam **Populous** (Bullfrog 1989, god-game — fitting "creator-zonder-tijd-stepping zou een lege wereld maken"). **Geel bugfix** (frame-step contract met Core ontbrak).
+
+### Fixed
+- **Geen scherm-output na bake-success + Quick BASIC drop.** Root cause: vAmigaWeb vereist **twee** WASM-calls per browser-frame (zie `external/vamigaweb/js/vAmiga_ui.js:1947` + `:1976`):
+  1. `wasm_execute()` → `emu->emu->computeFrame()` — CPU/chipset/disk-IO stepping
+  2. `wasm_draw_one_frame(now)` → framebuffer-sync + dimensies + warping-handling
+- Onze `CanvasRenderer._tick()` (sub-step 6) riep **alleen** `drawOneFrame` aan → emulator rustte stil → framebuffer bevroren op moment-van-snapshot (of leeg bij nieuwe boot).
+- `src/lib/canvas-renderer.js`: `this.bindings.execute()` toegevoegd vóór `drawOneFrame(now)` in `_tick`. Cwrap-binding voor `execute` was al beschikbaar sinds v0.0.6 maar werd nooit aangeroepen.
+
+### RCA (drie-niveaus per CLAUDE.md)
+- **Functioneel:** User-bake voltooid + sample.bas geaccepteerd + status "Programma draait!" zichtbaar, maar canvas bleef leeg.
+- **Technisch:** vAmigaWeb's frame-protocol is **niet self-documenting** — geen comment in main.cpp dat `wasm_execute` per frame moet worden aangeroepen. Achter te halen via reverse-engineering van hun `vAmiga_ui.js:do_animation_frame()`. Onze v0.0.6-implementatie ging er ten onrechte van uit dat `wasm_draw_one_frame` ook stepping deed.
+- **Architectonisch:** `docs/CORE_API_CONTRACT.md` (v0.0.16+) moet de frame-loop-volgorde expliciet documenteren: `execute → drawOneFrame → optional pixelBuffer read`.
+
+### Verified (statisch)
+- ✓ `node --check src/lib/canvas-renderer.js`
+- ✓ Live bundle `dist/chunk-KGJD65ML.js`: `this.bindings.execute(); this.bindings.drawOneFrame(now);` zichtbaar
+- ✓ Volgorde correct (execute vóór drawOneFrame, zoals vAmigaWeb's eigen do_animation_frame)
+- ✓ vAmigaWeb main.cpp:392 `wasm_execute` body bevestigd: `emu->emu->computeFrame() + counter++`
+
+### Te verifieren door user
+- Hard-refresh + post-bake → Quick BASIC drop sample.bas → canvas moet nu **bewegen** (Workbench-icons of BASIC-prompt zichtbaar)
+- FPS-teller in console: `[canvas-renderer] pixel-format gedetecteerd: RGBA/ARGB` zou nu binnen ~1 sec moeten verschijnen (eerste frame data)
+- Mogelijk volgend: bake-flow zelf renderde ook al canvas; als `bake-canvas` nu wel beweegt → bake werkt visueel ook + 8-sec WB-boot-wait is daadwerkelijk visueel zichtbaar
+
+### Niet-fix (v0.0.16+)
+- `docs/CORE_API_CONTRACT.md` — frame-loop-volgorde + alle cwrap+EM_ASM-contracten documenteren
+- Audio-sink kan in zelfde tick optimisatie krijgen (sub-step 7 ScriptProcessorNode pull is async, geen wijziging nodig)
+
 ## [0.0.14-IKPlus] — 2026-06-01 (bugfix: stale size-gate Quick BASIC weigert valide multi-block .bas)
 
 > Codenaam **IK+** (Archer Maclean 1988 Amiga port — fitting "knock out the stale gate"). **Geel bugfix** (stale UI-text + foutieve size-gate).

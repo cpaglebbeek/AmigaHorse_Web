@@ -114,7 +114,12 @@ export class CanvasRenderer {
     const now = performance.now();
 
     try {
-      // Emulator-step: laat vAmiga één frame berekenen
+      // v0.0.15-Populous: vAmiga heeft TWEE calls per frame nodig (zie
+      // external/vamigaweb/js/vAmiga_ui.js:1947 + :1976):
+      //   wasm_execute()        = emu->computeFrame() — CPU/chipset stepping
+      //   wasm_draw_one_frame() = framebuffer-sync + dimensies + warping
+      // Zonder execute() rust de emulator stil → framebuffer leeg/bevroren.
+      this.bindings.execute();
       this.bindings.drawOneFrame(now);
 
       // Lees framebuffer-dimensies (kan wijzigen bij resolution-switch)
