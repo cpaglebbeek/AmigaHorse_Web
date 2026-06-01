@@ -10,6 +10,8 @@ import { CanvasRenderer } from '../lib/canvas-renderer.js';
 import { MouseInput } from '../lib/mouse-input.js';
 import { AudioSetup } from '../lib/audio-setup.js';
 import { GamepadInput } from '../lib/gamepad-input.js';
+import { SaveStateManager, SAVE_STATE_SLOTS } from '../lib/save-state-manager.js';
+import { insertDiskInDrive, DRIVES } from '../lib/disk-swap.js';
 
 const dropzone = document.getElementById('dropzone-full');
 const listEl = document.getElementById('library-list');
@@ -21,6 +23,8 @@ let renderer = null;
 let mouseInput = null;
 let audioSetup = null;
 let gamepadInput = null;
+let saveStateManager = null;
+let currentDiskKey = null;
 
 function setStatus(msg, kind = 'info') {
   if (!statusEl) { console.log('[full]', msg); return; }
@@ -67,15 +71,81 @@ async function refreshLibrary() {
   for (const disk of disks) {
     const li = document.createElement('li');
     const sizeKb = disk.blob ? Math.round(disk.blob.size / 1024) : '?';
+    const driveButtons = DRIVES.map((d) =>
+      `<button data-label="${escapeAttr(disk.label)}" data-drive="${d.num}" class="drive-btn">${d.label}</button>`,
+    ).join(' ');
     li.innerHTML = `
       <strong>${escapeHtml(disk.label)}</strong>
       <small>(${sizeKb} KB)</small>
-      <button data-label="${escapeAttr(disk.label)}" class="play-btn">▶ Play</button>
+      <br>
+      <button data-label="${escapeAttr(disk.label)}" class="play-btn">▶ Boot (DF0:)</button>
+      <span style="margin-left:0.5rem;">Insert: ${driveButtons}</span>
     `;
     listEl.appendChild(li);
   }
   for (const btn of listEl.querySelectorAll('.play-btn')) {
     btn.addEventListener('click', () => playDisk(btn.dataset.label));
+  }
+  for (const btn of listEl.querySelectorAll('.drive-btn')) {
+    btn.addEventListener('click', () => insertDisk(btn.dataset.label, Number(btn.dataset.drive)));
+  }
+}
+
+async function insertDisk(label, drive) {
+  try {
+    if (!saveStateManager) {
+      setStatus('Start eerst een spel via "Boot (DF0:)" voordat je een schijf wisselt', 'error');
+      return;
+    }
+    const bindings = await getBindings();
+    const diskAsset = await loadAsset('amigahorse-disks', label);
+    await insertDiskInDrive(bindings, diskAsset.blob, label, drive);
+    setStatus(`${label} → DF${drive}:`, 'success');
+  } catch (err) {
+    console.error('[full/library] insertDisk error:', err);
+    setStatus(`Insert mislukt: ${err.message}`, 'error');
+  }
+}
+
+async function quicksave(slot) {
+  try {
+    if (!saveStateManager || !currentDiskKey) {
+      setStatus('Start eerst een spel voordat je kunt saven', 'error');
+      return;
+    }
+    const meta = await saveStateManager.save(currentDiskKey, slot);
+    setStatus(`Saved slot ${slot} (${Math.round(meta.size / 1024)} KB)`, 'success');
+  } catch (err) {
+    console.error('[full/library] quicksave error:', err);
+    setStatus(`Save mislukt: ${err.message}`, 'error');
+  }
+}
+
+async function quickload(slot) {
+  try {
+    if (!saveStateManager || !currentDiskKey) {
+      setStatus('Start eerst een spel voordat je kunt loaden', 'error');
+      return;
+    }
+    const loaded = await saveStateManager.load(currentDiskKey, slot);
+    if (loaded) {
+      setStatus(`Loaded slot ${slot}`, 'success');
+    } else {
+      setStatus(`Slot ${slot} is leeg`, 'error');
+    }
+  } catch (err) {
+    console.error('[full/library] quickload error:', err);
+    setStatus(`Load mislukt: ${err.message}`, 'error');
+  }
+}
+
+// Wire save/load buttons
+function wireSaveStateUI() {
+  for (let s = 1; s <= SAVE_STATE_SLOTS; s++) {
+    const saveBtn = document.getElementById(`save-${s}`);
+    const loadBtn = document.getElementById(`load-${s}`);
+    if (saveBtn) saveBtn.addEventListener('click', () => quicksave(s));
+    if (loadBtn) loadBtn.addEventListener('click', () => quickload(s));
   }
 }
 
@@ -119,6 +189,11 @@ async function playDisk(label) {
     const diskAsset = await loadAsset('amigahorse-disks', label);
     const diskBuf = new Uint8Array(await diskAsset.blob.arrayBuffer());
     bindings.loadFile(label, diskBuf, 0);
+
+    // Initialiseer save-state-manager met disk-hash
+    if (!saveStateManager) saveStateManager = new SaveStateManager(bindings);
+    currentDiskKey = await saveStateManager.hashDisk(diskBuf);
+    console.log('[full/library] disk-key:', currentDiskKey);
 
     // Renderer + input
     canvas.style.display = 'block';
@@ -176,4 +251,5 @@ document.body.addEventListener('click', async () => {
 }, { once: true });
 
 refreshLibrary();
-setStatus('Library klaar — drop een ADF/HDF of klik Play');
+wireSaveStateUI();
+setStatus('Library klaar — drop een ADF/HDF of klik Boot');

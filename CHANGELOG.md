@@ -2,6 +2,47 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Codenamen uit pool `Meta_AmigaHorse/CLAUDE.md`.
 
+## [0.0.9-FrontierEliteII] — 2026-06-01 (sub-step 9: save-state-slots + multi-disk-swap)
+
+> Codenaam **Frontier: Elite II** (David Braben 1993, iconic infinite-universe save-state-systeem). Kleur **Groen +0.0.1**.
+
+### Added
+- **`src/lib/save-state-manager.js`** (~110r) — `SaveStateManager` class
+  - 4 slots per disk-hash (uitbreidbaar via `SLOTS_PER_DISK`)
+  - Disk-key = eerste 16 hex chars van SHA-256(disk-bytes) → 64-bit-uniek via `crypto.subtle.digest`
+  - `save(diskKey, slot)`, `load(diskKey, slot)`, `listSlots(diskKey)`, `hashDisk(buf)`
+  - IndexedDB-label-format `${diskKey}:${slot}` in bestaande `amigahorse-states`-store (`basic-env-snapshot` ongemoeid)
+- **`src/lib/disk-swap.js`** (~50r) — multi-disk-helpers
+  - `insertDiskInDrive(bindings, blob, fileName, drive)` voor DF0..DF3
+  - `DRIVES` constant met 4-drive metadata
+- **`src/full/library.js`** uitgebreid
+  - "Boot (DF0:)" hoofd-knop per disk → loadDisk + powerOn + renderer
+  - "Insert: DF0 DF1 DF2 DF3" knoppen per disk → mount in drive zonder reset
+  - `quicksave(slot)` + `quickload(slot)` met disk-key-binding bij Boot
+  - `wireSaveStateUI` koppelt save-1..4 + load-1..4 buttons
+- **`src/full/index.html`** save-state-controls sectie met 8 buttons (Save/Load 1-4)
+- **`esbuild.config.mjs`** entry-points: save-state-manager + disk-swap erbij
+
+### Verified
+- `node --check` op 13 JS-files OK
+- `npm run build` 46ms minified
+- Dev-server :5173: `/`, `/basic/`, `/full/` (2125b — uitgebreid), `vendor WASM` 8.77 MB allemaal 200
+- `dist/full/index.html` bevat `save-state-controls` + `save-1` + `load-1` (HTML correct gecopy-ed naar dist/)
+
+### Decided
+- Disk-key = 64-bit hash (16 hex chars) — voldoende uniek voor user-libraries van ~hundreds disks
+- 4 slots default; uitbreidbaar zonder DB-migratie (label-format is flexibel)
+- `basic-env-snapshot` blijft aparte fixed key (geen slot-overlap met game-states)
+
+### Not yet (sub-step 10 of v0.1.0)
+- Mouse-coords WB-icon-tunen (vereist user-screenshot)
+- iOS PWA (manifest.json + service-worker)
+- Compat-set Turrican/Lemmings/SOTB benchmark
+- AudioWorklet-migratie
+- Save-state-thumbnail (framebuffer-snap bij save)
+- Auto-save bij tab-close
+- Save-state-export/import (.vamigastate file-download)
+
 ## [0.0.8-DefenderOfTheCrown] — 2026-06-01 (sub-step 8: multi-block ADF + Full mode + Gamepad)
 
 > Codenaam **Defender of the Crown** (Cinemaware 1986, eerste echt "cinematic" Amiga-experience — fitting Full mode arrival).

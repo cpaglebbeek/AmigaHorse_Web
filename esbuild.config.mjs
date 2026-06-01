@@ -49,12 +49,14 @@ function copyStaticAssets() {
 }
 
 const entryPoints = {
-  'wasm-bridge':         join(SRC, 'wasm-bridge.js'),
-  'lib/build-blank-adf': join(SRC, 'lib/build-blank-adf.js'),
-  'lib/gamepad-input':   join(SRC, 'lib/gamepad-input.js'),
-  'basic/quick-launch':  join(SRC, 'basic/quick-launch.js'),
-  'basic/setup':         join(SRC, 'basic/setup.js'),
-  'full/library':        join(SRC, 'full/library.js'),
+  'wasm-bridge':           join(SRC, 'wasm-bridge.js'),
+  'lib/build-blank-adf':   join(SRC, 'lib/build-blank-adf.js'),
+  'lib/gamepad-input':     join(SRC, 'lib/gamepad-input.js'),
+  'lib/save-state-manager': join(SRC, 'lib/save-state-manager.js'),
+  'lib/disk-swap':         join(SRC, 'lib/disk-swap.js'),
+  'basic/quick-launch':    join(SRC, 'basic/quick-launch.js'),
+  'basic/setup':           join(SRC, 'basic/setup.js'),
+  'full/library':          join(SRC, 'full/library.js'),
 };
 
 const baseOptions = {
