@@ -1,22 +1,15 @@
-// AmigaHorse_Web — BASIC Asset-Setup wizard (v0.0.5-RType, sub-step 5)
+// AmigaHorse_Web — BASIC Asset-Setup wizard (v0.0.11-AlienBreed)
 //
-// Vier-stap-wizard:
-//   1. Upload Kickstart 1.3 ROM    → IndexedDB amigahorse-kickstart/kick13
-//   2. Upload Workbench 1.3 ADF    → IndexedDB amigahorse-disks/wb13-master
-//   3. Upload AmigaBASIC binary    → IndexedDB amigahorse-kickstart/amigabasic-bin
-//   4. Bake warm-snapshot:
-//        a. init vAmiga + loadFile kick13 (Kickstart ROM)
-//        b. powerOn(1)
-//        c. loadFile wb13.adf op df0
-//        d. run + wachten op WB-boot (~6-8 sec)
-//        e. key sequence om AmigaBASIC te starten (zie BASIC_MODE.md voor timing)
-//        f. wachten op BASIC-prompt
-//        g. saveStateToBuffer → IndexedDB amigahorse-states/basic-env-snapshot
-//        h. redirect naar /basic/
-//
-// **Status sub-step 5:** Infrastructuur klaar. Live test door gebruiker met
-// daadwerkelijke KS 1.3 + WB 1.3 + AmigaBASIC binaries vereist.
-// Timing-konstanten zijn educated guesses; sub-step 5+ live tunen.
+// v0.0.11 — Root cause bake-flow "undefined error":
+//   vAmigaWeb's wasm_loadFile gebruikt FILENAME-EXTENSION als type-discriminator:
+//     `.rom_file`     → ROM-branch (mem.loadRom + auto powerOn + run)
+//     `.rom_ext_file` → ROM-ext-branch
+//     `.adf`/`.dms`/  → load_disk-branch
+//     (zie external/vamigaweb/main.cpp:1748,1823)
+//   Onze v0.0.5..v0.0.10 stuurde 'kick13.rom' → géén ROM-branch match → Kickstart
+//   nooit geflashed → powerOn faalt silent → downstream "undefined".
+//   Fix: rename naar 'kick13.rom_file' + diagnostics-pass na elke stage zodat
+//   user/dev exact ziet welke stage werkt.
 
 import { init, getBindings, getModule, storeAsset } from '../wasm-bridge.js';
 import { encodeStringToSequence, playSequence, RAWKEY } from '../lib/amiga-keymap.js';
@@ -91,79 +84,121 @@ async function bakeWarmSnapshot() {
   elBake.disabled = true;
   setStepStatus('step-4', 'Init vAmiga-WASM-module...');
 
+  // Diagnostics-pass v0.0.11: per-stage logger zodat downstream "undefined"
+  // niet meer silent doorslipt. Elke stage logt START + END + waarde.
+  const stage = (label, fn) => {
+    console.group(`[bake] ${label}`);
+    console.time(`[bake] ${label}`);
+    try {
+      const result = fn();
+      if (result instanceof Promise) {
+        return result.then((v) => {
+          console.log(`→ result:`, v);
+          console.timeEnd(`[bake] ${label}`);
+          console.groupEnd();
+          return v;
+        }).catch((e) => {
+          console.error(`✗ FAIL:`, e);
+          console.timeEnd(`[bake] ${label}`);
+          console.groupEnd();
+          throw e;
+        });
+      }
+      console.log(`→ result:`, result);
+      console.timeEnd(`[bake] ${label}`);
+      console.groupEnd();
+      return result;
+    } catch (e) {
+      console.error(`✗ FAIL:`, e);
+      console.timeEnd(`[bake] ${label}`);
+      console.groupEnd();
+      throw e;
+    }
+  };
+
   try {
-    await init();
-    const bindings = await getBindings();
+    await stage('1.init-vamiga', () => init());
+    const bindings = await stage('1.get-bindings', () => getBindings());
 
     // -- Stap 1: Load Kickstart ROM --
+    // CRITICAL v0.0.11: filename MOET '.rom_file' suffix hebben anders skipt
+    // vAmigaWeb (main.cpp:1748) de ROM-branch en flasht de Kickstart nooit.
     setStepStatus('step-4', 'Laad Kickstart 1.3 ROM...');
     const kickBuf = new Uint8Array(await STATE.kick.arrayBuffer());
-    // vAmiga's load_disk() detecteert het ROM-formaat aan header-bytes.
-    // Drive-number is voor ROMs irrelevant; we geven 0xFF als "n/a" indicator.
-    // TODO sub-step 5 live: verifieer of dit pad werkt; alternatief = aparte ROM-API
-    const kickResult = bindings.loadFile('kick13.rom', kickBuf, 0xFF);
-    console.log('[bake] loadFile kick13 →', kickResult);
+    console.log('[bake] kick-buffer:', kickBuf.length, 'bytes, header:',
+      Array.from(kickBuf.slice(0, 4)).map((b) => b.toString(16).padStart(2, '0')).join(' '));
+    const kickResult = stage('2.loadFile-kick (kick13.rom_file, drive=0xFF)',
+      () => bindings.loadFile('kick13.rom_file', kickBuf, 0xFF));
+    if (kickResult !== 'rom') {
+      // ROM-branch returnt letterlijk "rom" (main.cpp:1794+1820). Andere waarden
+      // = niet geflashed → verderop fout. Eerder waarschuwen.
+      console.warn(`[bake] WARN: loadFile kick returned "${kickResult}" — verwacht "rom". Fix waarschijnlijk niet geslaagd.`);
+    }
     await sleep(200);
 
     // -- Stap 2: Power on --
-    setStepStatus('step-4', 'Power on...');
-    const powerResult = bindings.powerOn(1);
-    console.log('[bake] powerOn →', powerResult);
+    // NB: main.cpp:1812-1813 doet powerOn+run AUTOMATISCH na ROM-flash, dus dit
+    // is sinds v0.0.11 strikt redundant. We laten het staan als "ensure-on"-no-op.
+    setStepStatus('step-4', 'Power on (ensure)...');
+    const powerResult = stage('3.powerOn(1)', () => bindings.powerOn(1));
+    if (powerResult && powerResult !== '') {
+      console.warn(`[bake] WARN: powerOn returned non-empty "${powerResult}" — mogelijk error-string.`);
+    }
     await sleep(500);
 
     // -- Stap 3: Insert WB 1.3 in df0 --
     setStepStatus('step-4', 'Mount Workbench 1.3 ADF in DF0:...');
     const wbBuf = new Uint8Array(await STATE.wb.arrayBuffer());
-    const wbResult = bindings.loadFile('wb13.adf', wbBuf, 0);
-    console.log('[bake] loadFile wb13 →', wbResult);
+    console.log('[bake] wb-buffer:', wbBuf.length, 'bytes');
+    const wbResult = stage('4.loadFile-wb (wb13.adf, drive=0)',
+      () => bindings.loadFile('wb13.adf', wbBuf, 0));
+    console.log('[bake] wb load returned:', JSON.stringify(wbResult));
 
-    // -- Stap 4: Start canvas-renderer + run emulator + wacht op WB-boot --
-    setStepStatus('step-4', 'Start canvas-renderer + emulatie + wachten op Workbench-boot (~8 sec)...');
-    // Canvas-renderer + visuele feedback (sub-step 6)
+    // -- Stap 4: Start canvas-renderer + wacht op WB-boot --
+    setStepStatus('step-4', 'Start canvas-renderer + wachten op Workbench-boot (~8 sec)...');
     const bakeCanvas = document.getElementById('bake-canvas');
     let bakeRenderer = null;
     if (bakeCanvas) {
-      const Module = await getModule();
+      const Module = await stage('5.get-module', () => getModule());
       bakeRenderer = new CanvasRenderer(bakeCanvas, bindings, Module);
       bakeCanvas.style.display = 'block';
       bakeRenderer.start();
       bakeRenderer.fitToContainer(640);
+      console.log('[bake] renderer started');
     }
-    bindings.run();
+    // run() is no-op als ROM-branch al powerOn+run deed, maar veilig.
+    stage('6.run', () => bindings.run());
     await sleep(8000);
 
     // -- Stap 5: Open AmigaBASIC --
-    // Twee-pad-aanpak (sub-step 6):
-    //   1. Type "AmigaBASIC<RET>" — werkt als WB 1.3 al een Shell-prompt heeft
-    //   2. Mouse-double-click op icon-positie (270, 100) — typische WB 1.3 layout
-    //
-    // Beide proberen. Eerste sub-step 5 live test bevestigt welke werkt.
     setStepStatus('step-4', 'Try 1: CLI-typing "AmigaBASIC<RET>"...');
     const startSequence = encodeStringToSequence('AmigaBASIC\r');
-    await playSequence(bindings, startSequence);
+    await stage('7.playSequence-AmigaBASIC',
+      () => playSequence(bindings, startSequence));
     await sleep(2000);
 
     setStepStatus('step-4', 'Try 2: muis-double-click op AmigaBASIC-icon (270, 100)...');
-    // Coords zijn educated guess voor WB 1.3 disk-window-icon-layout.
-    // Live test moet exacte coords meten.
-    await scriptedDoubleClick(bindings, 270, 100);
-    await sleep(3000);  // wachten tot AmigaBASIC opent
+    await stage('8.scriptedDoubleClick(270,100)',
+      () => scriptedDoubleClick(bindings, 270, 100));
+    await sleep(3000);
 
     // -- Stap 6: Save workspace als warm-snapshot --
     setStepStatus('step-4', 'Save warm-snapshot naar IndexedDB...');
-    const snap = bindings.saveStateToBuffer();
+    const snap = stage('9.saveStateToBuffer', () => bindings.saveStateToBuffer());
     if (!snap || snap.length === 0) {
-      throw new Error('saveStateToBuffer leverde lege buffer — emulator nog niet ready?');
+      throw new Error('saveStateToBuffer leverde lege buffer — emulator nog niet ready of ROM-flash gefaald (zie stage 2 logregel)');
     }
-    await storeAsset('amigahorse-states', 'basic-env-snapshot', new Blob([snap]));
+    await stage('10.storeAsset-snapshot',
+      () => storeAsset('amigahorse-states', 'basic-env-snapshot', new Blob([snap])));
     console.log('[bake] warm-snapshot opgeslagen (', snap.length, ' bytes)');
 
     if (bakeRenderer) bakeRenderer.stop();
     setStepStatus('step-4', `OK warm-snapshot ${snap.length} bytes opgeslagen. Doorsturen...`, 'done');
     setTimeout(() => { window.location.href = '/basic/'; }, 1500);
   } catch (err) {
-    console.error('[bake]', err);
-    setStepStatus('step-4', `Bake mislukt: ${err.message}`, 'error');
+    console.error('[bake] BAKE-FLOW MISLUKT:', err);
+    console.error('[bake] stack:', err.stack);
+    setStepStatus('step-4', `Bake mislukt: ${err.message || err}`, 'error');
     elBake.disabled = false;
   }
 }

@@ -2,6 +2,37 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Codenamen uit pool `Meta_AmigaHorse/CLAUDE.md`.
 
+## [0.0.11-AlienBreed] — 2026-06-01 (bugfix: bake-flow ROM-flash + diagnostics-pass)
+
+> Codenaam **Alien Breed** (Team17 1991, silent threat in dark corridors — fitting voor een silent extension-mismatch bug die door 6 sub-steps onopgemerkt bleef). **Geel bugfix** (JS↔WASM binding-bug).
+
+### Fixed
+- **Root cause "undefined error bij start" (v0.0.10 open debug-punt):** vAmigaWeb's `wasm_loadFile` (zie `external/vamigaweb/main.cpp:1748,1823`) gebruikt **filename-extension als type-discriminator** — `.rom_file` voor ROMs, `.rom_ext_file` voor ext-ROMs, anders disk/snapshot/HDF. Onze `setup.js` stuurde `'kick13.rom'` → géén branch-match → Kickstart nooit geflashed → downstream silent fail (powerOn op niet-gereed board, lege save-state, TypeError op undefined property).
+- `src/basic/setup.js:104` (now diagnostics-wrapped): filename `'kick13.rom'` → `'kick13.rom_file'`. Drive-number `0xFF` blijft (ROM-branch gebruikt `drive_number` niet, alleen disk-branches op regel 1560-1583).
+
+### Added (diagnostics-pass)
+- `bakeWarmSnapshot()` wrapt nu **elke stage** in een `stage(label, fn)` helper met `console.group` + `console.time` + result-log + fail-handler met stack-trace.
+- 10 genummerde stages: `1.init-vamiga` → `1.get-bindings` → `2.loadFile-kick` → `3.powerOn(1)` → `4.loadFile-wb` → `5.get-module` → `6.run` → `7.playSequence-AmigaBASIC` → `8.scriptedDoubleClick` → `9.saveStateToBuffer` → `10.storeAsset-snapshot`.
+- Sanity-check op stage 2 result: warning als `loadFile` niet `"rom"` returnt (main.cpp:1794+1820 conventie).
+- Sanity-check op stage 3 result: warning bij non-empty error-string uit `wasm_power_on` (main.cpp:2205 conventie).
+- Header-bytes van kick-buffer + size + WB-buffer-size in console (forensic-trail).
+
+### RCA (drie-niveaus per CLAUDE.md)
+- **Functioneel:** Asset-Setup wizard liep stilzwijgend dood op stap 4; user kreeg generieke "undefined error" zonder stage-attribution.
+- **Technisch:** `wasm-bridge.js:35` docstring claimde `load_disk()` doet "auto-detect file-type". Dat klopt voor disks + snapshots + HDF, maar **niet voor ROMs** — die vereisen `.rom_file` of `.rom_ext_file` extension. Verkeerde aanname uit sub-step 4-implementatie.
+- **Architectonisch:** Géén filename-naming-contract gedocumenteerd tussen JS-laag en Core. Bij vAmigaWeb-submodule-bump kan dit silent regressen. Toe te voegen aan `docs/CORE_API_CONTRACT.md` in sub-step 11+ (niet nu — buiten scope deze bugfix).
+
+### Verified (statisch — geen browser-test door agent)
+- `node --check src/basic/setup.js` ✓
+- vAmigaWeb main.cpp:1748 verifieert `extractSuffix(filename)=="rom_file"` branch-match
+- vAmigaWeb main.cpp:1542-1548 `extractSuffix` returnt substring na laatste `.`
+- Drive-number ongebruikt in ROM-branch (regel 1748-1820), alleen in disk-branches (regel 1560-1583)
+
+### Te verifieren door user
+- F12 → Console open vóór bake-button-klik
+- Verwacht: alle 10 stages groene check-marks; stage 2 result = `"rom"`; warm-snapshot ≥ 1MB
+- Bij failure: exacte stage + stack-trace nu zichtbaar voor v0.0.12-fix
+
 ## [0.0.10-Hunter] — 2026-06-01 (docs: AmigaBASIC-source-guide)
 
 > Codenaam **Hunter** (Activision 1991, open-world Amiga adventure — fitting "where to find = hunt"). Groen +0.0.1.
