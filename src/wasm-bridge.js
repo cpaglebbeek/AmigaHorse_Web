@@ -63,6 +63,21 @@ export function init() {
       return;
     }
 
+    // v0.0.12-ProjectX — JS-callbacks die vAmigaWeb via EM_ASM aanroept.
+    // Originele vAmigaWeb laadt js/vAmiga_canvas.js met deze functies + jQuery.
+    // Wij gebruiken eigen CanvasRenderer (rAF + pixelBuffer cwrap) dus stubben:
+    //   js_set_display(xOff, yOff, w, h)  — viewport-geometrie callback (main.cpp:181,1473)
+    //   scaleVMCanvas()                   — DOM-resize-call uit zelfde EM_ASM
+    // No-op is veilig: onze renderer leest renderWidth/Height direct via cwrap.
+    if (typeof window.js_set_display === 'undefined') {
+      window.js_set_display = (xOff, yOff, w, h) => {
+        console.debug('[vAmiga→js] js_set_display(stub):', { xOff, yOff, w, h });
+      };
+    }
+    if (typeof window.scaleVMCanvas === 'undefined') {
+      window.scaleVMCanvas = () => { /* no-op; eigen renderer doet sizing */ };
+    }
+
     window.Module = {
       _isAmigaHorseStub: true,
       locateFile: (p) => `${VAMIGA_BASE}/${p}`,

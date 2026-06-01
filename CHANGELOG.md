@@ -2,6 +2,35 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Codenamen uit pool `Meta_AmigaHorse/CLAUDE.md`.
 
+## [0.0.12-ProjectX] — 2026-06-01 (bugfix: ontbrekende JS-callbacks voor vAmigaWeb EM_ASM)
+
+> Codenaam **Project-X** (Team17 1992, shoot-em-up tegen alien-waves — fitting voor "ontbrekende callbacks" die golfgewijs uit vAmigaWeb's EM_ASM schieten). **Geel bugfix** (JS↔WASM binding-bug, vervolg op v0.0.11-AlienBreed).
+
+### Fixed
+- **`ReferenceError: js_set_display is not defined`** tijdens bake-flow (user-reported na v0.0.11). Root cause: vAmigaWeb roept via `EM_ASM` twee JS-callbacks aan die alleen in hun eigen `external/vamigaweb/js/vAmiga_canvas.js` gedefinieerd staan (met jQuery + `<canvas id="canvas">`-aanname). Wij laden die niet — eigen `CanvasRenderer` werkt anders (rAF + `wasm_pixel_buffer` cwrap).
+  - `external/vamigaweb/main.cpp:181` en `:1473`: `EM_ASM({js_set_display($0,$1,$2,$3); scaleVMCanvas();}, ...)` — getriggerd bij viewport-geometrie-update (PAL/NTSC-detect, mode-change). v0.0.11-fix activeerde de ROM-flash → boot → viewport-tracking → callback-crash.
+- `src/wasm-bridge.js` `init()`: 2 no-op stubs op `window` toegevoegd vóór `<script src=vAmiga.js>` injectie:
+  - `window.js_set_display(xOff, yOff, w, h)` — `console.debug` log, geen render-actie (renderer leest dimensies direct via `wasm_get_render_width/height`)
+  - `window.scaleVMCanvas()` — pure no-op (DOM-sizing in onze renderer via `fitToContainer`)
+- Stubs alleen gezet als nog niet bestaand (`typeof === 'undefined'`-guard) → conflictvrij bij host-page-override.
+
+### RCA (drie-niveaus per CLAUDE.md)
+- **Functioneel:** Bake-flow strandde direct na ROM-flash; user kreeg `ReferenceError`. Dit was alleen zichtbaar nadat v0.0.11 de ROM-branch correct activeerde — eerder werd de viewport-callback nooit gehit omdat het board nooit aan stond.
+- **Technisch:** vAmigaWeb gaat ervan uit dat hun `js/vAmiga_canvas.js` (+ jQuery + DOM-element `canvas`) is geladen. Wij integreren alleen `vAmiga.js`/`vAmiga.wasm` als headless emulator-core en bouwen eigen render-pipeline. `EM_ASM`-call-sites in main.cpp zijn níet defensief gewrapt zoals `send_message_to_js` (regel 589: `if typeof === 'undefined' return`); ze gooien `ReferenceError`.
+- **Architectonisch:** Onze JS↔WASM-laag heeft géén expliciete inventaris van **JS-callbacks die vAmigaWeb-WASM verwacht**. Dit type fout cascadeert naarmate méér code-paden van vAmiga-Core worden geactiveerd. Toe te voegen aan `docs/CORE_API_CONTRACT.md` (v0.0.13+): twee-richtingen contract — (a) cwrap-exports JS→WASM, (b) globale JS-functies WASM→JS via EM_ASM.
+
+### Verified (statisch — geen browser-test door agent)
+- esbuild watch-rebuild bevestigd: `dist/chunk-4SFFG4OR.js` bevat live stubs (3 hits voor `js_set_display`)
+- `node --check src/wasm-bridge.js` ✓
+- vAmigaWeb main.cpp:181,1473 zijn de **enige** twee EM_ASM-sites die `js_set_display` aanroepen (geverifieerd via `grep -n js_set_display external/vamigaweb/main.cpp`)
+- Andere EM_ASM-callbacks (`message_handler` op regel 587/599, `use_ntsc_pixel` op 714) zijn defensief gewrapt of globale variabelen — geen crash
+
+### Te verifieren door user
+- F12 → Console open vóór bake-klik
+- Verwacht: stage 2 → `result: "rom"` ✓, stage 3 → `result: ""` ✓, daarna **`[vAmiga→js] js_set_display(stub): {xOff, yOff, w, h}` debug-regel(s)** zichtbaar zonder crash
+- Bake-flow loopt door naar stage 9 saveStateToBuffer ≥ 1MB
+- Bij nieuwe failure: stuur exacte stage + stack-trace
+
 ## [0.0.11-AlienBreed] — 2026-06-01 (bugfix: bake-flow ROM-flash + diagnostics-pass)
 
 > Codenaam **Alien Breed** (Team17 1991, silent threat in dark corridors — fitting voor een silent extension-mismatch bug die door 6 sub-steps onopgemerkt bleef). **Geel bugfix** (JS↔WASM binding-bug).
