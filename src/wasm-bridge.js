@@ -137,6 +137,13 @@ function bindFunctions(Module) {
   // events: PULL_UP/DOWN/LEFT/RIGHT, PRESS_FIRE, RELEASE_X/Y/XY/FIRE
   const joystick = cwrap('wasm_joystick', 'void', ['string']);
 
+  // Snapshot (v0.0.13-SuperFrog — FS-bypass)
+  // wasm_take_user_snapshot returnt JSON-string met directe HEAP-pointer:
+  //   { "address": <u8*>, "size": <bytes>, "width": <px>, "height": <px> }
+  // wasm_delete_user_snapshot vrijwaart de allocation tussen takes.
+  const takeUserSnapshotRaw = cwrap('wasm_take_user_snapshot', 'string', []);
+  const deleteUserSnapshotRaw = cwrap('wasm_delete_user_snapshot', 'void', []);
+
   // Audio (sub-step 6 skelet; echte sink sub-step 7)
   const setSampleRate = cwrap('wasm_set_sample_rate', 'void', ['number']);
   const updateAudio = cwrap('wasm_update_audio', 'void', ['number']);
@@ -167,26 +174,50 @@ function bindFunctions(Module) {
 
   /**
    * Save current emulator state naar Uint8Array.
-   * Implementatie: vAmiga's wasm_save_workspace schrijft naar Emscripten-FS-pad,
-   * dan FS.readFile + cleanup.
+   *
+   * v0.0.13-SuperFrog: FS-bypass. vAmigaWeb's WASM exports cwrap/ccall/HEAPU8/
+   * HEAPF32 maar NIET FS (zie external/vamigaweb/CMakeLists.txt:54,91) — eerdere
+   * implementatie via wasm_save_workspace + Module.FS.readFile crashte met
+   * "Cannot read properties of undefined (reading 'readFile')".
+   *
+   * Nieuwe route: wasm_take_user_snapshot() → JSON met HEAP-pointer → subarray-
+   * copy naar nieuw Uint8Array.
    */
   function saveStateToBuffer() {
-    const path = '/tmp/amigahorse.snap';
-    saveWorkspaceRaw(path);
-    const buf = Module.FS.readFile(path);
-    try { Module.FS.unlink(path); } catch (_) { /* ok */ }
-    return new Uint8Array(buf);
+    const jsonStr = takeUserSnapshotRaw();
+    if (!jsonStr) throw new Error('wasm_take_user_snapshot returnde lege string');
+    let meta;
+    try {
+      meta = JSON.parse(jsonStr);
+    } catch (_) {
+      throw new Error(`take_user_snapshot JSON-parse failed: ${jsonStr.slice(0, 100)}`);
+    }
+    if (meta.error) throw new Error(`take_user_snapshot: ${meta.error}`);
+    const { address, size } = meta;
+    if (!address || !size) {
+      throw new Error(`take_user_snapshot leverde geen address/size (got ${jsonStr.slice(0, 200)})`);
+    }
+    // HEAPU8.subarray = view (no-copy); we kopiëren expliciet voor levensduur
+    // (HEAP kan re-allocaten bij volgende WASM-call → view wordt dan corrupt).
+    const view = Module.HEAPU8.subarray(address, address + size);
+    const buf = new Uint8Array(view);
+    return buf;
   }
 
   /**
    * Restore state vanuit Uint8Array.
+   *
+   * v0.0.13-SuperFrog: FS-bypass via loadFile snapshot-branch.
+   * vAmigaWeb's _wasm_loadFile herkent snapshots via Snapshot::isCompatible(blob,len)
+   * mits extension != "rom" (main.cpp:1722). Wij geven '.snap'-extension →
+   * eerste branch-match → amiga.loadSnapshot() zonder FS.
+   *
+   * Drive-number is irrelevant in de snapshot-branch (gebruikt alleen in disk/HD-branches).
    */
   function restoreStateFromBuffer(buf) {
-    const path = '/tmp/amigahorse.snap';
-    // Zorg dat /tmp bestaat (Emscripten heeft /tmp default in MEMFS)
-    Module.FS.writeFile(path, buf);
-    loadWorkspaceRaw(path);
-    try { Module.FS.unlink(path); } catch (_) { /* ok */ }
+    const result = loadFile('snapshot.snap', buf, 0);
+    // Snapshot-branch return-value is "" bij success (geen rom/rom_ext string).
+    return result;
   }
 
   return {

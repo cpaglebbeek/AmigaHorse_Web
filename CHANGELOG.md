@@ -2,6 +2,39 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Codenamen uit pool `Meta_AmigaHorse/CLAUDE.md`.
 
+## [0.0.13-SuperFrog] — 2026-06-01 (bugfix: FS-bypass voor save/restore-state via wasm_take_user_snapshot)
+
+> Codenaam **Super Frog** (Team17 1993, platformer — fitting "frozen-frame snapshot" en "leap over the FS-puddle"). **Geel bugfix** (JS↔WASM binding-bug, vervolg op v0.0.12-ProjectX).
+
+### Fixed
+- **`TypeError: Cannot read properties of undefined (reading 'readFile')`** in stage 9 (`saveStateToBuffer`) na muis-double-click. Root cause: `Module.FS` is `undefined` omdat vAmigaWeb's `external/vamigaweb/CMakeLists.txt:54,91` exporteert alleen `cwrap,ccall,HEAPU8,HEAPF32` — **`FS` ontbreekt** in `EXPORTED_RUNTIME_METHODS`.
+- `src/wasm-bridge.js` `saveStateToBuffer()` herschreven: nieuwe route via `wasm_take_user_snapshot()` (main.cpp:1257) die JSON returnt met directe HEAP-pointer `{"address": <u8*>, "size": <bytes>, "width": <px>, "height": <px>}` → `Module.HEAPU8.subarray(address, address+size)` → `new Uint8Array(view)` (expliciete copy ivm HEAP-realloc-risico).
+- `src/wasm-bridge.js` `restoreStateFromBuffer()` herschreven: gebruikt nu `loadFile('snapshot.snap', buf, 0)` — vAmigaWeb's `_wasm_loadFile` (main.cpp:1722) herkent snapshots via `Snapshot::isCompatible(blob,len) && extractSuffix(filename)!="rom"` → directe `amiga.loadSnapshot()`-call, géén FS.
+- Twee nieuwe cwrap-bindings: `takeUserSnapshotRaw` + `deleteUserSnapshotRaw` (cleanup tussen takes).
+
+### Removed
+- `Module.FS.readFile()` + `Module.FS.writeFile()` + `Module.FS.unlink()` calls (all 4 instances) volledig verwijderd uit save/restore-pad.
+- Dependency op `wasm_save_workspace` / `wasm_load_workspace` voor warm-snapshot-route geëlimineerd (cwrap-bindings blijven beschikbaar voor toekomstig workspace-gebruik, maar niet meer in default save-pad).
+
+### RCA (drie-niveaus per CLAUDE.md)
+- **Functioneel:** Bake-flow strandde op stage 9 met TypeError nadat de muis-double-click was uitgevoerd; warm-snapshot werd nooit opgeslagen, redirect naar `/basic/` triggerde niet.
+- **Technisch:** Onze `saveStateToBuffer`-implementatie (sub-step 5) ging er ten onrechte van uit dat Emscripten's `Module.FS` standaard beschikbaar was. vAmigaWeb's CMakeLists bewust beperkt de runtime-exports voor binary-size. Defensieve check `if (!Module.FS) throw` was nooit ingebouwd. De alternatieve `wasm_take_user_snapshot`-API gaf vanaf v0.0.2 al een FS-vrije route — die was over het hoofd gezien.
+- **Architectonisch:** Save-state-formaat-keuze (snapshot vs workspace) is nu impliciet anders dan eerder gepland. Snapshot = single point-in-time amiga-state (incl. CPU+mem+chipset), workspace = bredere config (incl. mounted disk-paths). Voor BASIC warm-snapshot is snapshot voldoende (we hebben mounted-disk-state niet nodig na restore). `docs/CORE_API_CONTRACT.md` (v0.0.14+) moet beide routes documenteren + wanneer welke kiezen.
+
+### Verified (statisch — geen browser-test door agent)
+- esbuild watch-rebuild bevestigd: `dist/chunk-R2QVYZEQ.js` bevat `wasm_take_user_snapshot` (2 hits) + nieuwe `saveStateToBuffer`-body; **0 hits** voor `FS.readFile|FS.writeFile` in alle live chunks
+- `node --check src/wasm-bridge.js` ✓
+- vAmigaWeb main.cpp:1257-1295 `wasm_take_user_snapshot` returnt JSON-schema bevestigd
+- vAmigaWeb main.cpp:1722-1745 Snapshot-loadFile-branch bevestigd (extension `≠ "rom"`-guard match via `.snap`-naam)
+- Function hoist-order in `bindFunctions`: `takeUserSnapshotRaw` (regel 144) → `loadFile` (163) → `saveStateToBuffer` (186) → `restoreStateFromBuffer` (217) — TDZ-vrij
+
+### Te verifieren door user
+- F12 → Console open + hard-refresh (`Cmd+Shift+R`) vóór bake-klik
+- Verwacht: stage 9 `→ result: Uint8Array(~1MB)` (was: TypeError)
+- Snapshot-JSON in console (vAmigaWeb's stdout via Module.print): `wasm_pull_user_snapshot_file` + `data header bytes= ...` + `return => {"address":..., "size":..., "width":..., "height":...}`
+- Daarna stage 10 `storeAsset-snapshot` → redirect naar `/basic/`
+- Bij Quick BASIC drop `.bas` post-bake: nieuwe `restoreStateFromBuffer` via `loadFile('snapshot.snap', buf, 0)` te valideren (snapshot-branch in `_wasm_loadFile` herkent header-magic onafhankelijk van filename mits extension ≠ rom)
+
 ## [0.0.12-ProjectX] — 2026-06-01 (bugfix: ontbrekende JS-callbacks voor vAmigaWeb EM_ASM)
 
 > Codenaam **Project-X** (Team17 1992, shoot-em-up tegen alien-waves — fitting voor "ontbrekende callbacks" die golfgewijs uit vAmigaWeb's EM_ASM schieten). **Geel bugfix** (JS↔WASM binding-bug, vervolg op v0.0.11-AlienBreed).
