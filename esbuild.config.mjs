@@ -25,11 +25,12 @@ const DIST = join(ROOT, 'dist');
 
 // HTML-routes 1-op-1 kopiëren
 const HTML_ROUTES = [
-  ['src/index.html',          'dist/index.html'],
-  ['src/styles.css',          'dist/styles.css'],
-  ['src/basic/index.html',    'dist/basic/index.html'],
-  ['src/basic/setup.html',    'dist/basic/setup.html'],
-  ['src/full/index.html',     'dist/full/index.html'],
+  ['src/index.html',                       'dist/index.html'],
+  ['src/styles.css',                       'dist/styles.css'],
+  ['src/where-to-get-amigabasic.html',     'dist/where-to-get-amigabasic.html'],
+  ['src/basic/index.html',                 'dist/basic/index.html'],
+  ['src/basic/setup.html',                 'dist/basic/setup.html'],
+  ['src/full/index.html',                  'dist/full/index.html'],
 ];
 
 function copyStaticAssets() {

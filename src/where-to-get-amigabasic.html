@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Waar vind ik AmigaBASIC / Kickstart / Workbench? — AmigaHorse</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main style="max-width:780px; margin:0 auto; padding:2rem;">
+    <h1>Waar vind ik AmigaBASIC, Kickstart 1.3 en Workbench 1.3?</h1>
+
+    <p>
+      AmigaHorse stuurt <strong>niets</strong> naar externe servers — alle assets blijven lokaal
+      in je browser (IndexedDB). Maar je moet de bestanden zelf legaal in bezit hebben (zie
+      <a href="https://github.com/cpaglebbeek/Meta_AmigaHorse/blob/main/docs/PRINCIPLES.md#p-amh-05--g%C3%A9%C3%A9n-kickstart-rom-in-repo" target="_blank">P-AMH-05</a>).
+    </p>
+
+    <h2>Wat is AmigaBASIC?</h2>
+    <p>
+      Microsoft AmigaBASIC (Bob Doyle, Charles Petzold, 1985-1989) zat in de root van de
+      <strong>Workbench 1.1, 1.2 en 1.3 disks</strong>. Het bestand heet letterlijk
+      <code>AmigaBASIC</code> (zonder extensie). Op Kickstart 2.0+ werkt het niet meer
+      (bekende Commodore-incompatibility).
+    </p>
+
+    <h2>Legale bronnen</h2>
+
+    <table>
+      <thead>
+        <tr><th>Bron</th><th>Hoe</th><th>Prijs</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Cloanto Amiga Forever</strong></td>
+          <td>
+            <a href="https://www.amigaforever.com/" target="_blank" rel="noopener">amigaforever.com</a>
+            — Value / Plus / Premium edities. Bevat Kickstart-ROMs (1.3, 2.05, 3.1),
+            originele Workbench-ADFs, AmigaBASIC, en Amiga-OS-licentierechten.
+          </td>
+          <td>€30+</td>
+        </tr>
+        <tr>
+          <td><strong>Eigen rip</strong> van eigen WB 1.3 floppy</td>
+          <td>
+            Met Greaseweazle, KryoFlux of Catweasel → ADF-bestand.
+            Of via eigen Amiga + AmigaExplorer / CrossDOS naar PC.
+            Legaal in NL/EU voor privé-gebruik (eigen reservekopie).
+          </td>
+          <td>Gratis (mits hardware)</td>
+        </tr>
+        <tr>
+          <td><strong>Tweedehands WB 1.3 floppy</strong></td>
+          <td>
+            eBay, Catawiki, Marktplaats, Amiga-fora — zoek "Commodore Workbench 1.3"
+            of "Workbench V1.3". Daarna rippen (hierboven).
+          </td>
+          <td>€5-15</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Welk bestand voor welke wizard-stap?</h2>
+
+    <ol>
+      <li>
+        <strong>Stap 1 — Kickstart 1.3 ROM</strong>: bestand <code>kick13.rom</code>,
+        verwacht ~256 KB. Uit Cloanto Amiga Forever (in <code>shared/rom/</code>) of
+        eigen rip met ROM-dumper (DiagROM, Action Replay).
+      </li>
+      <li>
+        <strong>Stap 2 — Workbench 1.3 ADF</strong>: bestand <code>wb13.adf</code>,
+        exact 880 KB. Cloanto bundelt deze (`Workbench1_3.adf`); zelf rippen met
+        Greaseweazle of vanuit Amiga via AmigaExplorer.
+      </li>
+      <li>
+        <strong>Stap 3 — AmigaBASIC binary</strong>: het bestand <code>AmigaBASIC</code>
+        zelf, ~100 KB. <strong>Zit AL op de Workbench 1.3 ADF</strong> in de root-directory.
+        Workaround voor v0.0.x: upload dezelfde <code>wb13.adf</code> nogmaals voor deze
+        stap (sub-step 10 maakt deze stap optioneel). Of extract apart met:
+        <ul>
+          <li><a href="https://github.com/lallafa/amitools" target="_blank" rel="noopener"><code>xdftool</code></a> (cross-platform):
+            <code>xdftool wb13.adf unpack AmigaBASIC</code>
+          </li>
+          <li><code>ADFOpus</code> (Windows): mount ADF, drag-drop AmigaBASIC eruit</li>
+          <li><a href="https://adf.io/" target="_blank" rel="noopener">adf.io</a> (browser-based, geen install)</li>
+        </ul>
+      </li>
+    </ol>
+
+    <h2>Wat we NIET aanbevelen</h2>
+    <p>
+      Random ADF-downloads van piracy-archives, torrents, of "abandonware"-sites.
+      Cloanto handhaaft auteursrechten — voor privégebruik in NL ben je beschermd
+      <em>als</em> je het origineel bezit, anders niet. AmigaHorse zelf uploadt niets
+      (alle binaries blijven in IndexedDB van je browser), maar bron-legaliteit is
+      jouw verantwoordelijkheid.
+    </p>
+
+    <h2>Sub-step 10 roadmap</h2>
+    <p>
+      In v0.1.0+ wordt de wizard slimmer:
+    </p>
+    <ul>
+      <li>Auto-detect AmigaBASIC in WB 1.3 ADF — geen stap 3 meer nodig</li>
+      <li>AROS-Kickstart als fallback voor demo-modus (sommige BASIC-progs werken zonder originele KS)</li>
+      <li>SHA-256-bekende-hashes-check tegen Cloanto's officiële builds</li>
+    </ul>
+
+    <hr>
+
+    <nav>
+      <a href="/basic/setup.html">← Terug naar Asset-Setup</a>
+      <span> · </span>
+      <a href="/">Mode-picker</a>
+      <span> · </span>
+      <a href="https://github.com/cpaglebbeek/Meta_AmigaHorse" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+  </main>
+</body>
+</html>

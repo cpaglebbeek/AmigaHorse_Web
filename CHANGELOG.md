@@ -2,6 +2,20 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Codenamen uit pool `Meta_AmigaHorse/CLAUDE.md`.
 
+## [0.0.10-Hunter] — 2026-06-01 (docs: AmigaBASIC-source-guide)
+
+> Codenaam **Hunter** (Activision 1991, open-world Amiga adventure — fitting "where to find = hunt"). Groen +0.0.1.
+
+### Added
+- **`src/where-to-get-amigabasic.html`** — eigenstandige info-pagina met legale bronnen (Cloanto Amiga Forever, eigen rip, tweedehands) + per-wizard-stap-uitleg + extract-tools (xdftool / ADFOpus / adf.io) + sub-step-10-roadmap
+- Link vanuit `/basic/setup.html` (in compat-banner) + `/basic/index.html` (nav-sectie)
+- `esbuild.config.mjs` HTML_ROUTES uitgebreid
+
+### Verified
+- Dev-server :5173 serveert `/where-to-get-amigabasic.html` (4894b)
+- Links vanuit setup.html + basic/index.html correct gerendered
+- H1/H2-structuur valid
+
 ## [0.0.9-FrontierEliteII] — 2026-06-01 (sub-step 9: save-state-slots + multi-disk-swap)
 
 > Codenaam **Frontier: Elite II** (David Braben 1993, iconic infinite-universe save-state-systeem). Kleur **Groen +0.0.1**.
