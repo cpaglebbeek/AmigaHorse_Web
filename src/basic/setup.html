@@ -42,8 +42,14 @@
 
       <li class="wizard-step" id="step-4">
         <h3>Stap 4 — Warm-snapshot bake</h3>
-        <p>Eenmalige boot van de Amiga + start AmigaBASIC + save-state-freeze (~10 sec).</p>
+        <p>
+          1. Klik <strong>Start bake</strong> → emulator boot tot Workbench (~12 sec).<br>
+          2. <strong>Met muis</strong> in canvas: dubbelklik op <em>Workbench1.3</em>-disk-icoon, daarna op <em>Shell</em>-icoon.<br>
+          3. <strong>Met toetsenbord</strong>: type <code>AmigaBasic</code> + Enter.<br>
+          4. Zodra AmigaBASIC-window verschijnt: klik <strong>Snapshot now</strong>.
+        </p>
         <button id="bake-button" disabled>Start bake</button>
+        <button id="snapshot-button" disabled style="margin-left:1rem; background:var(--wb-green); color:white;">Snapshot now</button>
         <p class="step-status"></p>
       </li>
     </ol>
