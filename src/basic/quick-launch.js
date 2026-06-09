@@ -16,6 +16,7 @@ import { buildAdfWithBasFile, _internal as adfInternal } from '../lib/build-blan
 import { encodeStringToSequence, playSequence } from '../lib/amiga-keymap.js';
 import { CanvasRenderer } from '../lib/canvas-renderer.js';
 import { MouseInput } from '../lib/mouse-input.js';
+import { KeyboardInput } from '../lib/keyboard-input.js';
 import { AudioSetup } from '../lib/audio-setup.js';
 import { GamepadInput } from '../lib/gamepad-input.js';
 
@@ -27,6 +28,7 @@ const smokeTestButton = document.getElementById('smoke-test');
 
 let renderer = null;
 let mouseInput = null;
+let keyboardInput = null;
 let audioSetup = null;
 let gamepadInput = null;
 
@@ -110,6 +112,10 @@ async function handleBasFile(file) {
     if (!mouseInput) {
       mouseInput = new MouseInput(canvas, bindings);
       mouseInput.attach();
+    }
+    if (!keyboardInput) {
+      keyboardInput = new KeyboardInput(canvas, bindings);
+      keyboardInput.attach();
     }
     if (!gamepadInput) {
       gamepadInput = new GamepadInput(bindings);
