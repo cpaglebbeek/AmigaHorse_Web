@@ -2,6 +2,54 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Codenamen uit pool `Meta_AmigaHorse/CLAUDE.md`.
 
+## [0.0.19-Gods] — 2026-06-01 (feature: live keyboard input + manual snapshot-now flow)
+
+> Codenaam **Gods** (Bitmap Brothers / Renegade 1991 — actie-platformer met "ascend to godhood"-thema; user neemt nu zelf controle over bake-flow ipv broken scripted auto-clicks). **Oranje feature** (nieuwe input-component + bake-flow herontwerp).
+
+### Added
+- **`src/lib/keyboard-input.js`** — nieuwe `KeyboardInput` class:
+  - DOM `keydown`/`keyup` → `bindings.key(rawKey, pressed)`
+  - Mapping `KeyboardEvent.code` → Amiga RAWKEY (50+ keys: letters, digits, symbols, modifiers, function-keys)
+  - Layout-onafhankelijk (gebruikt `code` niet `key`)
+  - Dedupe op repeat-events + auto-release-on-blur
+  - Respecteert input/textarea focus (geen onderschepping)
+  - Reserved browser-shortcuts (F12, Ctrl+R, Cmd+Shift+I) blijven werken
+- **Snapshot-now-knop** in `src/basic/setup.html` — wordt actief zodra WB geboot is
+
+### Changed — bake-flow herontwerp
+- `src/basic/setup.js`: scripted stages 7+8 (auto-AmigaBASIC-launch) **verwijderd** — gebleken onbetrouwbaar (mouse-coords gokken + AmigaBASIC niet op WB-desktop maar in Shell). Stages 9+10 (snapshot + store) verplaatst naar Snapshot-now button-handler.
+- Nieuwe bake-flow: bake boot tot Workbench (~12 sec) → user navigeert **handmatig** met muis+toetsenbord naar AmigaBASIC → klikt **Snapshot now** → state opgeslagen op exact het juiste moment.
+- Bake-canvas heeft nu `MouseInput` + `KeyboardInput` attached (was alleen `CanvasRenderer`).
+- `src/basic/quick-launch.js`: ook `KeyboardInput` attached → user kan post-RUN met BASIC-programma interageren (input-statements werken).
+
+### Fixed
+- **Shell-toetsenbord deed niets** — voorheen geen live `keydown`-handler op canvas. User kon Shell openen maar niet typen → AmigaBASIC niet starten. Nu werkt typen direct.
+
+### RCA (drie-niveaus per CLAUDE.md)
+- **Functioneel:** v0.0.11-17 deden scripted auto-clicks naar AmigaBASIC-icon op gegokt coord (270,100). Bleek niet te werken omdat (a) op WB1.3-disk geen AmigaBASIC op desktop maar in Shell, (b) icon-positie varieert per WB-version, (c) tot v0.0.18 was muis-protocol sowieso broken. v0.0.18 fixte muis maar liet auto-stages staan. v0.0.19 erkent dat manual flow robuuster is.
+- **Technisch:** Geen `keydown`/`keyup`-listener op DOM → toetsen gingen naar browser, nooit naar vAmiga. `wasm_key`-cwrap bestond sinds v0.0.6 (alleen via `playSequence` aangeroepen, nooit interactief).
+- **Architectonisch:** Bake-flow had impliciete aanname dat WB+AmigaBASIC vanuit één script-pad bereikbaar is. In werkelijkheid is dit afhankelijk van: WB-versie, ADF-inhoud, drawer-structuur, icon-positie. **Manual-checkpoint pattern** scheidt "boot setup" (mechanisch) van "ready state" (user-defined moment). Toe te voegen aan `docs/PRINCIPLES.md` als P-AMH-10 ("warm-snapshot = user-defined moment, niet script-getriggerd").
+
+### Verified (statisch)
+- ✓ `node --check src/lib/keyboard-input.js` + `setup.js` + `quick-launch.js`
+- ✓ `wasm_key(code, pressed)` body main.cpp:924 bevestigd
+- ✓ Live bundle `dist/chunk-KJGJEPEV.js`: `KeyboardInput`, `CODE_TO_RAWKEY` aanwezig
+- ✓ HTML: `id="snapshot-button"` + handler-binding aanwezig
+
+### Te verifieren door user
+- Setup → **Start bake** → wacht 12 sec → Snapshot-now-knop wordt actief
+- Met muis (canvas): dubbelklik Workbench1.3 → dubbelklik Shell
+- Met toetsenbord: type `AmigaBasic` + Enter → AmigaBASIC-window opent
+- Klik **Snapshot now** → state opgeslagen + redirect naar /basic/
+- Drop sample.bas → werkt: `LOAD "DF1:launch.bas"\rRUN\r` wordt nu naar AmigaBASIC-prompt gestuurd
+- BONUS: in quick-launch werkend live BASIC-typen (INPUT-statements, error-correctie, etc.)
+
+### Open na v0.0.19
+- Touchscreen-keyboard (Z-Fold): virtual keyboard overlay zou nuttig zijn op mobiel
+- Disk-eject/insert tijdens runtime (geen interface yet)
+- Speciale-toets-binding (Help, Right-Amiga, etc.) op screen-button voor laptops zonder dedicated key
+- `docs/PRINCIPLES.md` P-AMH-10 toevoegen: manual warm-snapshot principe
+
 ## [0.0.18-XenonII] — 2026-06-01 (bugfix: muis als absolute coords + verkeerde button-IDs + PAL aspect-ratio)
 
 > Codenaam **Xenon 2 Megablast** (Bitmap Brothers / Mirrorsoft 1989 — vertical shoot-em-up met multi-target-blasts; passend bij meerdere bugs in één fix). **Geel bugfix** (drie JS↔Core protocol-bugs in input + display).
