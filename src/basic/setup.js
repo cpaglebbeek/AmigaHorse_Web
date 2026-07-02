@@ -12,9 +12,9 @@
 //   user/dev exact ziet welke stage werkt.
 
 import { init, getBindings, getModule, storeAsset } from '../wasm-bridge.js';
-import { encodeStringToSequence, playSequence, RAWKEY } from '../lib/amiga-keymap.js';
 import { CanvasRenderer } from '../lib/canvas-renderer.js';
-import { scriptedDoubleClick } from '../lib/mouse-input.js';
+import { MouseInput } from '../lib/mouse-input.js';
+import { KeyboardInput } from '../lib/keyboard-input.js';
 
 const STATE = {
   kick: null,
@@ -26,6 +26,13 @@ const elKick = document.getElementById('upload-kick');
 const elWb = document.getElementById('upload-wb');
 const elBasic = document.getElementById('upload-basic');
 const elBake = document.getElementById('bake-button');
+const elSnapshot = document.getElementById('snapshot-button');
+
+// v0.0.19-Gods — globale staat voor manual-snapshot-flow
+let bakeBindings = null;
+let bakeRenderer = null;
+let bakeMouse = null;
+let bakeKeyboard = null;
 
 function markStep(stepId, status) {
   const el = document.getElementById(stepId);
@@ -166,49 +173,32 @@ async function bakeWarmSnapshot() {
     stage('4b.reset (re-scan DF0)', () => bindings.reset());
     await sleep(500);
 
-    // -- Stap 4: Start canvas-renderer + wacht op WB-boot --
-    setStepStatus('step-4', 'Start canvas-renderer + wachten op Workbench-boot (~12 sec)...');
+    // -- Stap 4: Start canvas-renderer + MouseInput + KeyboardInput --
+    // v0.0.19-Gods: user navigeert zelf met muis + toetsenbord. Geen scripted
+    // clicks meer (waren onbetrouwbaar in v0.0.11-17, AmigaBASIC-icon-positie
+    // varieert per WB-versie + opent niet vanuit Workbench-desktop direct).
+    setStepStatus('step-4', 'Boot voltooid. Navigeer naar AmigaBASIC + klik "Snapshot now".');
     const bakeCanvas = document.getElementById('bake-canvas');
-    let bakeRenderer = null;
     if (bakeCanvas) {
       const Module = await stage('5.get-module', () => getModule());
       bakeRenderer = new CanvasRenderer(bakeCanvas, bindings, Module);
       bakeCanvas.style.display = 'block';
+      bakeCanvas.tabIndex = 0;
       bakeRenderer.start();
-      bakeRenderer.fitToContainer(640);
-      console.log('[bake] renderer started');
+      bakeRenderer.fitToContainer(800);
+      bakeMouse = new MouseInput(bakeCanvas, bindings);
+      bakeMouse.attach();
+      bakeKeyboard = new KeyboardInput(bakeCanvas, bindings);
+      bakeKeyboard.attach();
+      bakeBindings = bindings;
+      console.log('[bake] renderer + mouse + keyboard attached');
     }
-    // run() is no-op als ROM-branch al powerOn+run deed, maar veilig.
     stage('6.run', () => bindings.run());
-    // v0.0.17: 8 → 12 sec. WB 1.3 first-time boot van emulated 880KB OFS-disk
-    // duurt typisch 8-15 sec (disk seek + RAM-init + handler-load + scripts).
+
+    // Wacht 12 sec tot WB ge-boot is, dan unlock Snapshot-knop.
     await sleep(12000);
-
-    // -- Stap 5: Open AmigaBASIC --
-    setStepStatus('step-4', 'Try 1: CLI-typing "AmigaBASIC<RET>"...');
-    const startSequence = encodeStringToSequence('AmigaBASIC\r');
-    await stage('7.playSequence-AmigaBASIC',
-      () => playSequence(bindings, startSequence));
-    await sleep(2000);
-
-    setStepStatus('step-4', 'Try 2: muis-double-click op AmigaBASIC-icon (270, 100)...');
-    await stage('8.scriptedDoubleClick(270,100)',
-      () => scriptedDoubleClick(bindings, 270, 100));
-    await sleep(3000);
-
-    // -- Stap 6: Save workspace als warm-snapshot --
-    setStepStatus('step-4', 'Save warm-snapshot naar IndexedDB...');
-    const snap = stage('9.saveStateToBuffer', () => bindings.saveStateToBuffer());
-    if (!snap || snap.length === 0) {
-      throw new Error('saveStateToBuffer leverde lege buffer — emulator nog niet ready of ROM-flash gefaald (zie stage 2 logregel)');
-    }
-    await stage('10.storeAsset-snapshot',
-      () => storeAsset('amigahorse-states', 'basic-env-snapshot', new Blob([snap])));
-    console.log('[bake] warm-snapshot opgeslagen (', snap.length, ' bytes)');
-
-    if (bakeRenderer) bakeRenderer.stop();
-    setStepStatus('step-4', `OK warm-snapshot ${snap.length} bytes opgeslagen. Doorsturen...`, 'done');
-    setTimeout(() => { window.location.href = '/basic/'; }, 1500);
+    elSnapshot.disabled = false;
+    setStepStatus('step-4', 'Workbench klaar. Open Shell, type AmigaBasic + Enter, klik "Snapshot now".');
   } catch (err) {
     console.error('[bake] BAKE-FLOW MISLUKT:', err);
     console.error('[bake] stack:', err.stack);
@@ -218,3 +208,34 @@ async function bakeWarmSnapshot() {
 }
 
 elBake.addEventListener('click', bakeWarmSnapshot);
+
+/**
+ * v0.0.19-Gods — manual snapshot trigger. User klikt zodra AmigaBASIC zichtbaar
+ * draait. Vervangt automatische stages 7+8+9+10 uit v0.0.11-17.
+ */
+async function takeManualSnapshot() {
+  if (!bakeBindings) {
+    setStepStatus('step-4', 'Bake niet actief — start eerst de bake.', 'error');
+    return;
+  }
+  elSnapshot.disabled = true;
+  setStepStatus('step-4', 'Snapshot maken...');
+  try {
+    const snap = bakeBindings.saveStateToBuffer();
+    if (!snap || snap.length === 0) {
+      throw new Error('saveStateToBuffer leverde lege buffer');
+    }
+    console.log('[bake] manual snapshot:', snap.length, 'bytes');
+    await storeAsset('amigahorse-states', 'basic-env-snapshot', new Blob([snap]));
+    if (bakeRenderer) bakeRenderer.stop();
+    if (bakeMouse) bakeMouse.detach();
+    if (bakeKeyboard) bakeKeyboard.detach();
+    setStepStatus('step-4', `OK snapshot ${snap.length} bytes opgeslagen. Doorsturen...`, 'done');
+    setTimeout(() => { window.location.href = '/basic/'; }, 1500);
+  } catch (err) {
+    console.error('[snapshot] FAIL:', err);
+    setStepStatus('step-4', `Snapshot mislukt: ${err.message}`, 'error');
+    elSnapshot.disabled = false;
+  }
+}
+elSnapshot.addEventListener('click', takeManualSnapshot);
