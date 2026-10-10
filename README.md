@@ -45,7 +45,7 @@ Volledige diagram + data-flow: zie [Meta_AmigaHorse/ARCHITECTURE.md](https://git
 
 ## Distributie
 
-Static hosting met COOP+COEP-headers (`Cross-Origin-Opener-Policy: same-origin` + `Cross-Origin-Embedder-Policy: require-corp`, vereist voor SharedArrayBuffer-PTHREAD). v0.0.x: lokaal getest via `npx serve --cors` of `vite`. v0.1.x: deploy onder `icthorse.nl/AmigaHorse/` of `horsecloud55.ddns.net/AmigaHorse/`.
+Static hosting met COOP+COEP-headers (`Cross-Origin-Opener-Policy: same-origin` + `Cross-Origin-Embedder-Policy: require-corp`, vereist voor SharedArrayBuffer-PTHREAD). v0.0.x: lokaal getest via `npx serve --cors` of `vite`. v0.1.x: deploy onder `icthorse.nl/AmigaHorse/` of `icthorsecloud.nl/AmigaHorse/`.
 
 ## ROM-beleid (P-AMH-05 — strikt)
 
